@@ -1,9 +1,39 @@
 @_exported import Jobs
 import Redis
-import Foundation
 import NIO
+import Foundation
 
-extension RedisDatabase: JobsPersistenceLayer {
+/// A wrapper that conforms to `JobsPersistenceLayer`
+public struct RedisJobs {
+    
+    /// The `RedisDatabase` to run commands on
+    let database: RedisDatabase
+    
+    /// The `EventLoop` to run jobs on
+    var _eventLoop: EventLoop
+    
+    /// Creates a new `RedisJobs` instance
+    ///
+    /// - Parameters:
+    ///   - database: The `RedisDatabase` to run commands on
+    ///   - eventLoop: The `EventLoop` to run jobs on
+    public init(database: RedisDatabase, eventLoop: EventLoop) {
+        self.database = database
+        self._eventLoop = eventLoop
+    }
+}
+
+extension RedisJobs: JobsPersistenceLayer {
+    
+    /// The `EventLoop` to run jobs on
+    public var eventLoop: EventLoop {
+        get {
+            return self._eventLoop
+        }
+        set(newValue) {
+            self._eventLoop = newValue
+        }
+    }
     
     /// Stores the job in Redis with the specified data
     ///
@@ -11,15 +41,14 @@ extension RedisDatabase: JobsPersistenceLayer {
     ///   - key: The key to store the data
     ///   - job: The `Job` to store
     ///   - maxRetryCount: The number of retries to
-    ///   - worker: An `EventLoopGroup` that can be used to generate future values
     /// - Returns: A future `Void` value used to signify completion
-    public func set<J: Job>(key: String, job: J, maxRetryCount: Int, worker: EventLoopGroup) -> EventLoopFuture<Void> {
-        return self.newConnection(on: worker).flatMap(to: RedisClient.self) { conn in
+    public func set<J: Job>(key: String, job: J, maxRetryCount: Int) -> EventLoopFuture<Void> {
+        return database.newConnection(on: eventLoop).flatMap(to: RedisClient.self) { conn in
             let jobData = JobData(key: key, data: job, maxRetryCount: maxRetryCount)
             let data = try JSONEncoder().encode(jobData).convertToRedisData()
             return conn.lpush([data], into: key).transform(to: conn)
-            }.map { conn in
-                return conn.close()
+        }.map { conn in
+            return conn.close()
         }
     }
     
@@ -27,12 +56,11 @@ extension RedisDatabase: JobsPersistenceLayer {
     ///
     /// - Parameters:
     ///   - key: The key to retrieve the data from
-    ///   - worker: An `EventLoopGroup` that can be used to generate future values
     /// - Returns: A future `Void` value used to signify completion
-    public func get(key: String, worker: EventLoopGroup) -> EventLoopFuture<JobData?> {
+    public func get(key: String) -> EventLoopFuture<JobData?> {
         let processingKey = key + "-processing"
         
-        return self.newConnection(on: worker).flatMap { conn in
+        return database.newConnection(on: eventLoop).flatMap { conn in
             return conn.rpoplpush(source: key, destination: processingKey).transform(to: conn)
         }.flatMap { conn in
             return conn.command("LPOP", [try processingKey.convertToRedisData()]).and(result: conn)
@@ -49,9 +77,8 @@ extension RedisDatabase: JobsPersistenceLayer {
     /// - Parameters:
     ///   - key: The key that was used to complete the job
     ///   - jobString: The string representation of the job
-    ///   - worker: An `EventLoopGroup` that can be used to generate future values
     /// - Returns: A future `Void` value used to signify completion
-    public func completed(key: String, jobString: String, worker: EventLoopGroup) -> EventLoopFuture<Void> {
-        return worker.future()
+    public func completed(key: String, jobString: String) -> EventLoopFuture<Void> {
+        return eventLoop.future()
     }
 }
