@@ -56,8 +56,9 @@ extension RedisJobs: JobsPersistenceLayer {
     ///
     /// - Parameters:
     ///   - key: The key to retrieve the data from
-    /// - Returns: A future `Void` value used to signify completion
-    public func get(key: String) -> EventLoopFuture<JobData?> {
+    ///   - jobsConfig: The `JobsConfig` object registered via services
+    /// - Returns: The returned `JobData` object, if it exists
+    public func get(key: String, jobsConfig: JobsConfig) -> EventLoopFuture<JobData?> {
         let processingKey = key + "-processing"
         
         return database.newConnection(on: eventLoop).flatMap { conn in
@@ -67,7 +68,8 @@ extension RedisJobs: JobsPersistenceLayer {
         }.map { redisData, conn in
             conn.close()
             guard let data = redisData.data else { return nil }
-            return try? JSONDecoder().decode(JobData.self, from: data)
+            let decoder = try JSONDecoder().decode(DecoderUnwrapper.self, from: data)
+            return try jobsConfig.decode(from: decoder.decoder)
         }
     }
     
@@ -81,4 +83,9 @@ extension RedisJobs: JobsPersistenceLayer {
     public func completed(key: String, jobString: String) -> EventLoopFuture<Void> {
         return eventLoop.future()
     }
+}
+
+struct DecoderUnwrapper: Decodable {
+    let decoder: Decoder
+    init(from decoder: Decoder) { self.decoder = decoder }
 }
