@@ -10,7 +10,7 @@ let package = Package(
             targets: ["RedisJobs"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/vapor-community/jobs.git", from: "0.0.1"),
+        .package(url: "https://github.com/vapor-community/jobs.git", .branch("master")),
         .package(url: "https://github.com/vapor/redis.git", from: "3.0.0")
     ],
     targets: [
