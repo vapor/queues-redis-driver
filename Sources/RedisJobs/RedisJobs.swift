@@ -64,7 +64,7 @@ extension RedisJobs: JobsPersistenceLayer {
         return database.newConnection(on: eventLoop).flatMap { conn in
             return conn.rpoplpush(source: key, destination: processingKey).transform(to: conn)
         }.flatMap { conn in
-            return conn.command("LPOP", [try processingKey.convertToRedisData()]).and(result: conn)
+            return conn.lrange(list: processingKey, range: 0...0).and(result: conn)
         }.map { redisData, conn in
             conn.close()
             guard let data = redisData.data else { return nil }
@@ -73,7 +73,7 @@ extension RedisJobs: JobsPersistenceLayer {
         }
     }
     
-    /// Left blank because Redis does not need a cleanup with this implementation.
+    /// Removes the item from the redis store
     /// See `JobsPersistenceLayer`.`completed` for a full description
     ///
     /// - Parameters:
@@ -81,7 +81,14 @@ extension RedisJobs: JobsPersistenceLayer {
     ///   - jobString: The string representation of the job
     /// - Returns: A future `Void` value used to signify completion
     public func completed(key: String, jobString: String) -> EventLoopFuture<Void> {
-        return eventLoop.future()
+        return database.newConnection(on: eventLoop).flatMap(to: RedisClient.self) { conn in
+            let processingKey = try (key + "-processing").convertToRedisData()
+            let count = try (-1).convertToRedisData()
+            let value = try jobString.convertToRedisData()
+            return conn.command("LREM", [processingKey, count, value]).transform(to: conn)
+        }.map { conn in
+            return conn.close()
+        }
     }
 }
 
