@@ -3,11 +3,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "RedisJobs",
+    name: "JobsRedisDriver",
     products: [
         .library(
-            name: "RedisJobs",
-            targets: ["RedisJobs"]),
+            name: "JobsRedisDriver",
+            targets: ["JobsRedisDriver"]),
     ],
     dependencies: [
         .package(url: "https://github.com/vapor-community/jobs.git", .branch("master")),
@@ -15,10 +15,10 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "RedisJobs",
+            name: "JobsRedisDriver",
             dependencies: ["Jobs", "Redis"]),
         .testTarget(
-            name: "RedisJobsTests",
-            dependencies: ["RedisJobs"]),
+            name: "JobsRedisDriverTests",
+            dependencies: ["JobsRedisDriver"]),
     ]
 )

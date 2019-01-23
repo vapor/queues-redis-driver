@@ -1,10 +1,10 @@
-@_exported import Jobs
+import Jobs
 import Redis
 import NIO
 import Foundation
 
 /// A wrapper that conforms to `JobsPersistenceLayer`
-public struct RedisJobs {
+public struct JobsRedisDriver {
     
     /// The `RedisDatabase` to run commands on
     let database: RedisDatabase
@@ -23,7 +23,7 @@ public struct RedisJobs {
     }
 }
 
-extension RedisJobs: JobsPersistenceLayer {
+extension JobsRedisDriver: JobsPersistenceLayer {
     /// The `EventLoop` to run jobs on
     public var eventLoop: EventLoop {
         get {
