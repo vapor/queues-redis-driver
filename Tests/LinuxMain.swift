@@ -1,7 +1,7 @@
 import XCTest
 
-import redis_jobsTests
+import JobsRedisDriverTests
 
 var tests = [XCTestCaseEntry]()
-tests += redis_jobsTests.allTests()
+tests += JobsRedisDriverTests.allTests()
 XCTMain(tests)
