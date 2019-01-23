@@ -63,10 +63,10 @@ extension RedisJobs: JobsPersistenceLayer {
         return database.newConnection(on: eventLoop).flatMap { conn in
             return conn.rpoplpush(source: key, destination: processing).transform(to: conn)
         }.flatMap { conn in
-            return conn.lrange(list: processing, range: 0...0).and(result: conn)
+            return conn.command("LPOP", [try processing.convertToRedisData()]).and(result: conn)
         }.map { redisData, conn in
             conn.close()
-            guard let data = redisData.array?.first?.data else { return nil }
+            guard let data = redisData.data else { return nil }
             let decoder = try JSONDecoder().decode(DecoderUnwrapper.self, from: data)
             return try jobsConfig.decode(from: decoder.decoder)
         }
@@ -80,14 +80,7 @@ extension RedisJobs: JobsPersistenceLayer {
     ///   - jobString: The string representation of the job
     /// - Returns: A future `Void` value used to signify completion
     public func completed(key: String, jobString: String) -> EventLoopFuture<Void> {
-        return database.newConnection(on: eventLoop).flatMap(to: RedisClient.self) { conn in
-            let processing = try self.processingKey(key: key).convertToRedisData()
-            let count = try (-1).convertToRedisData()
-            let value = try jobString.convertToRedisData()
-            return conn.command("LREM", [processing, count, value]).transform(to: conn)
-        }.map { conn in
-            return conn.close()
-        }
+        return eventLoop.future()
     }
     
     /// Returns the processing version of the key
