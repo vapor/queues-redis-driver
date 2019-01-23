@@ -66,7 +66,7 @@ extension RedisJobs: JobsPersistenceLayer {
             return conn.lrange(list: processing, range: 0...0).and(result: conn)
         }.map { redisData, conn in
             conn.close()
-            guard let data = redisData.data else { return nil }
+            guard let data = redisData.array?.first?.data else { return nil }
             let decoder = try JSONDecoder().decode(DecoderUnwrapper.self, from: data)
             return try jobsConfig.decode(from: decoder.decoder)
         }
