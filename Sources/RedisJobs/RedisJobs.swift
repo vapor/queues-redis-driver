@@ -24,7 +24,6 @@ public struct RedisJobs {
 }
 
 extension RedisJobs: JobsPersistenceLayer {
-    
     /// The `EventLoop` to run jobs on
     public var eventLoop: EventLoop {
         get {
@@ -59,12 +58,12 @@ extension RedisJobs: JobsPersistenceLayer {
     ///   - jobsConfig: The `JobsConfig` object registered via services
     /// - Returns: The returned `JobData` object, if it exists
     public func get(key: String, jobsConfig: JobsConfig) -> EventLoopFuture<JobData?> {
-        let processingKey = key + "-processing"
+        let processing = processingKey(key: key)
         
         return database.newConnection(on: eventLoop).flatMap { conn in
-            return conn.rpoplpush(source: key, destination: processingKey).transform(to: conn)
+            return conn.rpoplpush(source: key, destination: processing).transform(to: conn)
         }.flatMap { conn in
-            return conn.lrange(list: processingKey, range: 0...0).and(result: conn)
+            return conn.lrange(list: processing, range: 0...0).and(result: conn)
         }.map { redisData, conn in
             conn.close()
             guard let data = redisData.data else { return nil }
@@ -82,13 +81,21 @@ extension RedisJobs: JobsPersistenceLayer {
     /// - Returns: A future `Void` value used to signify completion
     public func completed(key: String, jobString: String) -> EventLoopFuture<Void> {
         return database.newConnection(on: eventLoop).flatMap(to: RedisClient.self) { conn in
-            let processingKey = try (key + "-processing").convertToRedisData()
+            let processing = try self.processingKey(key: key).convertToRedisData()
             let count = try (-1).convertToRedisData()
             let value = try jobString.convertToRedisData()
-            return conn.command("LREM", [processingKey, count, value]).transform(to: conn)
+            return conn.command("LREM", [processing, count, value]).transform(to: conn)
         }.map { conn in
             return conn.close()
         }
+    }
+    
+    /// Returns the processing version of the key
+    ///
+    /// - Parameter key: The base key
+    /// - Returns: The processing key
+    public func processingKey(key: String) -> String {
+        return key + "-processing"
     }
 }
 
