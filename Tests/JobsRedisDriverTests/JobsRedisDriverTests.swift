@@ -31,7 +31,12 @@ final class JobsRedisDriverTests: XCTestCase {
         let job = EmailJob(to: "email@email.com")
         try jobsDriver.set(key: "key", job: job, maxRetryCount: 1).wait()
         
-        try redisDatabase.newConnection(on: eventLoop).wait().get("key", as: String.self).wait()
+        guard let savedJobString = try redisDatabase.newConnection(on: eventLoop).wait().get("key", as: String.self).wait() else {
+            XCTFail()
+            return
+        }
+
+        
     }
     
     func testGettingValue() throws {

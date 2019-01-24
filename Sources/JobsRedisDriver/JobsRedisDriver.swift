@@ -10,7 +10,7 @@ public struct JobsRedisDriver {
     let database: RedisDatabase
     
     /// The `EventLoop` to run jobs on
-    var _eventLoop: EventLoop
+    public let eventLoop: EventLoop
     
     /// Creates a new `RedisJobs` instance
     ///
@@ -19,21 +19,11 @@ public struct JobsRedisDriver {
     ///   - eventLoop: The `EventLoop` to run jobs on
     public init(database: RedisDatabase, eventLoop: EventLoop) {
         self.database = database
-        self._eventLoop = eventLoop
+        self.eventLoop = eventLoop
     }
 }
 
 extension JobsRedisDriver: JobsPersistenceLayer {
-    /// The `EventLoop` to run jobs on
-    public var eventLoop: EventLoop {
-        get {
-            return self._eventLoop
-        }
-        set(newValue) {
-            self._eventLoop = newValue
-        }
-    }
-    
     /// Stores the job in Redis with the specified data
     ///
     /// - Parameters:
