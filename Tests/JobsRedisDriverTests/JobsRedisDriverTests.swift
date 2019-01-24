@@ -29,12 +29,9 @@ final class JobsRedisDriverTests: XCTestCase {
     }
     
     override func tearDown() {
+        try! redisConn.delete("key").wait()
+        try! redisConn.delete("key-processing").wait()
         redisConn.close()
-    }
-    
-    func testWarningExists() throws {
-        let job = EmailJob(to: "email@email.com")
-        try jobsDriver.set(key: "key", job: job, maxRetryCount: 1).wait()
     }
 
     func testSettingValue() throws {
@@ -58,15 +55,30 @@ final class JobsRedisDriverTests: XCTestCase {
         XCTAssertEqual(receivedJob.to, "email@email.com")
         
         //Assert that it was not added to the processing list
-        XCTAssertNil(try redisConn.rPop("key-processing").wait().array)
+        XCTAssertNil(try redisConn.lrange(list: "key-processing", range: 0...0).wait().data)
     }
     
     func testGettingValue() throws {
+        let firstJob = EmailJob(to: "email@email.com")
+        let secondJob = EmailJob(to: "email2@email.com")
         
+        try jobsDriver.set(key: "key", job: firstJob, maxRetryCount: 1).wait()
+        try jobsDriver.set(key: "key", job: secondJob, maxRetryCount: 1).wait()
+
+        guard let fetchedJobData = try jobsDriver.get(key: "key", jobsConfig: jobsConfig).wait() else {
+            XCTFail()
+            return
+        }
+
+        let fetchedJob = fetchedJobData.data as! EmailJob
+        XCTAssertEqual(fetchedJob.to, "email@email.com")
+        
+        //Assert that the base list still has data in it and the processing list has nothing
+        XCTAssertNotNil(try redisConn.lrange(list: "key", range: 0...0).wait().array)
+        XCTAssertEqual(try redisConn.lrange(list: "key-processing", range: 0...0).wait().array!.count,0 )
     }
     
     static var allTests = [
-        ("testWarningExists", testWarningExists),
         ("testSettingValue", testSettingValue),
         ("testGettingValue", testGettingValue)
     ]
