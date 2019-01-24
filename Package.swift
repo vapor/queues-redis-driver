@@ -10,7 +10,7 @@ let package = Package(
             targets: ["JobsRedisDriver"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/vapor-community/jobs.git", .branch("master")),
+        .package(url: "https://github.com/vapor-community/jobs.git", from: "0.2.0"),
         .package(url: "https://github.com/vapor/redis.git", from: "3.0.0")
     ],
     targets: [
