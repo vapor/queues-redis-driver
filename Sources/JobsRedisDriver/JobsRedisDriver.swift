@@ -43,7 +43,7 @@ extension JobsRedisDriver: JobsPersistenceLayer {
     /// - Returns: A future `Void` value used to signify completion
     public func set<J: Job>(key: String, job: J, maxRetryCount: Int) -> EventLoopFuture<Void> {
         return database.newConnection(on: eventLoop).flatMap(to: RedisClient.self) { conn in
-            let jobData = JobData(key: key, data: job, maxRetryCount: maxRetryCount)
+            let jobData = JobData(key: key, data: job, maxRetryCount: maxRetryCount, id: UUID().uuidString)
             let data = try JSONEncoder().encode(jobData).convertToRedisData()
             return conn.lpush([data], into: key).transform(to: conn)
         }.map { conn in

@@ -51,7 +51,7 @@
         "repositoryURL": "https://github.com/vapor-community/jobs.git",
         "state": {
           "branch": "master",
-          "revision": "96f77def46c0875f080160d79f7c36d03490aca0",
+          "revision": "11906f3f1a5cd7a316ca11a8d728b7d351bf3d83",
           "version": null
         }
       },
@@ -98,15 +98,6 @@
           "branch": null,
           "revision": "03c541a24dd0558c942b15d8464eb75d70a921c4",
           "version": "1.12.1"
-        }
-      },
-      {
-        "package": "swift-nio-extras",
-        "repositoryURL": "https://github.com/apple/swift-nio-extras.git",
-        "state": {
-          "branch": null,
-          "revision": "28154e042e1de46c0fb7da93f9b6d6518ef09156",
-          "version": "0.1.2"
         }
       },
       {
