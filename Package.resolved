@@ -50,9 +50,9 @@
         "package": "Jobs",
         "repositoryURL": "https://github.com/vapor-community/jobs.git",
         "state": {
-          "branch": "master",
-          "revision": "645a46cb4fe23916495a4ffe80aad789f0209e45",
-          "version": null
+          "branch": null,
+          "revision": "25bfceca47fdb745a0e804c47a29c6e63b4c636f",
+          "version": "0.2.2"
         }
       },
       {
