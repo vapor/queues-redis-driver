@@ -2,6 +2,7 @@ import Jobs
 import Redis
 import NIO
 import Foundation
+import Vapor
 
 /// A wrapper that conforms to `JobsPersistenceLayer`
 public struct JobsRedisDriver {
@@ -24,59 +25,43 @@ public struct JobsRedisDriver {
 }
 
 extension JobsRedisDriver: JobsPersistenceLayer {
-    /// Stores the job in Redis with the specified data
-    ///
-    /// - Parameters:
-    ///   - key: The key to store the data
-    ///   - job: The `Job` to store
-    ///   - maxRetryCount: The number of retries to
-    /// - Returns: A future `Void` value used to signify completion
-    public func set<J: Job>(key: String, job: J, maxRetryCount: Int) -> EventLoopFuture<Void> {
+    
+    /// See `JobsPersistenceLayer.get`
+    public func get(key: String) -> EventLoopFuture<JobStorage?> {
+        let processing = processingKey(key: key)
+        
+        return database.newConnection(on: eventLoop).flatMap { conn in
+            return conn.rpoplpush(source: key, destination: processing).and(result: conn)
+        }.map { redisData, conn in
+            conn.close()
+            guard let data = redisData.data else { return nil }
+            let decoder = try JSONDecoder().decode(DecoderUnwrapper.self, from: data)
+            return try JobStorage(from: decoder.decoder)
+        }
+    }
+    
+    /// See `JobsPersistenceLayer.set`
+    public func set(key: String, jobStorage: JobStorage) -> EventLoopFuture<Void> {
         return database.newConnection(on: eventLoop).flatMap(to: RedisClient.self) { conn in
-            let jobData = JobData(key: key, data: job, maxRetryCount: maxRetryCount, id: UUID().uuidString)
-            let data = try JSONEncoder().encode(jobData).convertToRedisData()
+            let data = try JSONEncoder().encode(jobStorage).convertToRedisData()
             return conn.lpush([data], into: key).transform(to: conn)
         }.map { conn in
             return conn.close()
         }
     }
     
-    /// Returns the job data using rpoplpush
-    ///
-    /// - Parameters:
-    ///   - key: The key to retrieve the data from
-    ///   - jobsConfig: The `JobsConfig` object registered via services
-    /// - Returns: The returned `JobData` object, if it exists
-    public func get(key: String, jobsConfig: JobsConfig) -> EventLoopFuture<JobData?> {
-        let processing = processingKey(key: key)
-        
+    /// See `JobsPersistenceLayer.completed`
+    public func completed(key: String, jobStorage: JobStorage) -> EventLoopFuture<Void> {
         return database.newConnection(on: eventLoop).flatMap { conn in
-            return conn.rpoplpush(source: key, destination: processing).transform(to: conn)
-        }.flatMap { conn in
-            return conn.command("LPOP", [try processing.convertToRedisData()]).and(result: conn)
-        }.map { redisData, conn in
-            conn.close()
-            guard let data = redisData.data else { return nil }
-            let decoder = try JSONDecoder().decode(DecoderUnwrapper.self, from: data)
-            return try jobsConfig.decode(from: decoder.decoder)
+            let processing = try self.processingKey(key: key).convertToRedisData()
+            let count = try 1.convertToRedisData()
+            
+            guard let value = try jobStorage.stringValue()?.convertToRedisData() else { throw Abort(.internalServerError, reason: "Cannot get string value") }
+            return conn.command("LREM", [processing, count, value]).transform(to: ())
         }
     }
     
-    /// Removes the item from the redis store
-    /// See `JobsPersistenceLayer`.`completed` for a full description
-    ///
-    /// - Parameters:
-    ///   - key: The key that was used to complete the job
-    ///   - jobString: The string representation of the job
-    /// - Returns: A future `Void` value used to signify completion
-    public func completed(key: String, jobString: String) -> EventLoopFuture<Void> {
-        return eventLoop.future()
-    }
-    
-    /// Returns the processing version of the key
-    ///
-    /// - Parameter key: The base key
-    /// - Returns: The processing key
+    /// See `JobsPersistenceLayer.processingKey`
     public func processingKey(key: String) -> String {
         return key + "-processing"
     }

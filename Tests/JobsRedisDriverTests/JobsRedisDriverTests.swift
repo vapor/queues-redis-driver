@@ -22,7 +22,7 @@ final class JobsRedisDriverTests: XCTestCase {
             redisConn = try redisDatabase.newConnection(on: eventLoop).wait()
             
             jobsConfig = JobsConfig()
-            jobsConfig.add(EmailJob.self)
+            jobsConfig.add(EmailJob())
         } catch {
             XCTFail()
         }
@@ -35,8 +35,11 @@ final class JobsRedisDriverTests: XCTestCase {
     }
 
     func testSettingValue() throws {
-        let job = EmailJob(to: "email@email.com")
-        try jobsDriver.set(key: "key", job: job, maxRetryCount: 1).wait()
+        let job = Email(to: "email@email.com")
+        let jobData = try JSONEncoder().encode(job)
+        let jobStorage = JobStorage(key: "key", data: jobData, maxRetryCount: 1, id: UUID().uuidString, jobName: EmailJob.jobName)
+        
+        try jobsDriver.set(key: "key", jobStorage: jobStorage).wait()
         
         guard let savedJobString = try redisConn.rPop("key").wait().data else {
             XCTFail()
@@ -44,38 +47,44 @@ final class JobsRedisDriverTests: XCTestCase {
         }
         
         let decoder = try JSONDecoder().decode(DecoderUnwrapper.self, from: savedJobString)
-        guard let jobData = try jobsConfig.decode(from: decoder.decoder) else {
-            XCTFail()
-            return
-        }
-
-        let receivedJob = (jobData.data as! EmailJob)
-        XCTAssertEqual(jobData.maxRetryCount, 1)
-        XCTAssertEqual(jobData.key, "key")
-        XCTAssertEqual(receivedJob.to, "email@email.com")
+        let retrievedJobStorage = try JobStorage(from: decoder.decoder)
+        let retrievedJob = try JSONDecoder().decode(Email.self, from: retrievedJobStorage.data)
+        
+        XCTAssertEqual(retrievedJobStorage.maxRetryCount, 1)
+        XCTAssertEqual(retrievedJobStorage.key, "key")
+        XCTAssertEqual(retrievedJob.to, "email@email.com")
         
         //Assert that it was not added to the processing list
         XCTAssertNil(try redisConn.lrange(list: "key-processing", range: 0...0).wait().data)
     }
     
     func testGettingValue() throws {
-        let firstJob = EmailJob(to: "email@email.com")
-        let secondJob = EmailJob(to: "email2@email.com")
+        let firstJob = Email(to: "email@email.com")
+        let secondJob = Email(to: "email2@email.com")
         
-        try jobsDriver.set(key: "key", job: firstJob, maxRetryCount: 1).wait()
-        try jobsDriver.set(key: "key", job: secondJob, maxRetryCount: 1).wait()
+        let firstJobData = try JSONEncoder().encode(firstJob)
+        let secondJobData = try JSONEncoder().encode(secondJob)
+        
+        let firstJobStorage = JobStorage(key: "key", data: firstJobData, maxRetryCount: 1, id: UUID().uuidString, jobName: EmailJob.jobName)
+        let secondJobStorage = JobStorage(key: "key", data: secondJobData, maxRetryCount: 1, id: UUID().uuidString, jobName: EmailJob.jobName)
+        
+        try jobsDriver.set(key: "key", jobStorage: firstJobStorage).wait()
+        try jobsDriver.set(key: "key", jobStorage: secondJobStorage).wait()
 
-        guard let fetchedJobData = try jobsDriver.get(key: "key", jobsConfig: jobsConfig).wait() else {
+        guard let fetchedJobData = try jobsDriver.get(key: "key").wait() else {
             XCTFail()
             return
         }
 
-        let fetchedJob = fetchedJobData.data as! EmailJob
+        let fetchedJob = try JSONDecoder().decode(Email.self, from: fetchedJobData.data)
         XCTAssertEqual(fetchedJob.to, "email@email.com")
         
-        //Assert that the base list still has data in it and the processing list has nothing
+        //Assert that the base list still has data in it and the processing list has 1
         XCTAssertNotNil(try redisConn.lrange(list: "key", range: 0...0).wait().array)
-        XCTAssertEqual(try redisConn.lrange(list: "key-processing", range: 0...0).wait().array!.count,0 )
+        XCTAssertEqual(try redisConn.lrange(list: "key-processing", range: 0...0).wait().array!.count, 1)
+        
+        try jobsDriver.completed(key: "key", jobStorage: fetchedJobData).wait()
+        XCTAssertEqual(try redisConn.lrange(list: "key-processing", range: 0...0).wait().array!.count, 0)
     }
     
     static var allTests = [
@@ -84,11 +93,13 @@ final class JobsRedisDriverTests: XCTestCase {
     ]
 }
 
-struct EmailJob: Job {
+struct Email: Codable, JobData {
     let to: String
-    
-    func dequeue(context: JobContext, worker: EventLoopGroup) -> EventLoopFuture<Void> {
-        return worker.future()
+}
+
+struct EmailJob: Job {
+    func dequeue(_ context: JobContext, _ data: Email) -> EventLoopFuture<Void> {
+        return context.eventLoop.future()
     }
 }
 
