@@ -33,7 +33,11 @@ extension JobsRedisDriver: JobsPersistenceLayer {
         return database.newConnection(on: eventLoop).flatMap { conn in
             return conn.rpoplpush(source: key, destination: processing).and(result: conn)
         }.flatMap(to: (RedisData, RedisClient).self) { redisData, conn in
-            guard let id = redisData.string else { throw Abort(.internalServerError) }
+            guard let id = redisData.string else {
+                conn.close()
+                throw Abort(.internalServerError)
+            }
+            
             return conn.rawGet(id).and(result: conn)
         }.map { redisData, conn in
             conn.close()
