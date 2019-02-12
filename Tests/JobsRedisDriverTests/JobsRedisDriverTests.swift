@@ -41,12 +41,19 @@ final class JobsRedisDriverTests: XCTestCase {
         
         try jobsDriver.set(key: "key", jobStorage: jobStorage).wait()
         
-        guard let savedJobString = try redisConn.rPop("key").wait().data else {
+        XCTAssertNotNil(try redisConn.rawGet(jobStorage.id).wait().string)
+        
+        guard let jobId = try redisConn.rPop("key").wait().string else {
             XCTFail()
             return
         }
         
-        let decoder = try JSONDecoder().decode(DecoderUnwrapper.self, from: savedJobString)
+        guard let retrievedJobData = try redisConn.rawGet(jobId).wait().data else {
+            XCTFail()
+            return
+        }
+        
+        let decoder = try JSONDecoder().decode(DecoderUnwrapper.self, from: retrievedJobData)
         let retrievedJobStorage = try JobStorage(from: decoder.decoder)
         let retrievedJob = try JSONDecoder().decode(Email.self, from: retrievedJobStorage.data)
         

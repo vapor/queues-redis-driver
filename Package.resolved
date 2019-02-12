@@ -33,8 +33,8 @@
         "repositoryURL": "https://github.com/vapor/database-kit.git",
         "state": {
           "branch": null,
-          "revision": "3557894af50914e134803a684b42a9ea6eefaea2",
-          "version": "1.3.2"
+          "revision": "8f352c8e66dab301ab9bfef912a01ce1361ba1e4",
+          "version": "1.3.3"
         }
       },
       {
@@ -42,17 +42,17 @@
         "repositoryURL": "https://github.com/vapor/http.git",
         "state": {
           "branch": null,
-          "revision": "4c8c655932fdb409c11549eadabf27d3d61bc24c",
-          "version": "3.1.7"
+          "revision": "b57005e0de30ba36372ac41bfce1ac12b2bc3272",
+          "version": "3.1.8"
         }
       },
       {
-        "package": "Jobs",
+        "package": "jobs",
         "repositoryURL": "https://github.com/vapor-community/jobs.git",
         "state": {
           "branch": null,
-          "revision": "25bfceca47fdb745a0e804c47a29c6e63b4c636f",
-          "version": "0.2.2"
+          "revision": "fbe1778181387e7d9fd05263b2e5b4f936e5c23c",
+          "version": "0.2.4"
         }
       },
       {
@@ -69,8 +69,8 @@
         "repositoryURL": "https://github.com/vapor/redis.git",
         "state": {
           "branch": null,
-          "revision": "cec3ee1eb226f2323947016be9db626fe6d3fe37",
-          "version": "3.0.3"
+          "revision": "b14ae4174ee4c8d2bb9196c96144b591c5a6592a",
+          "version": "3.1.0"
         }
       },
       {
@@ -87,8 +87,8 @@
         "repositoryURL": "https://github.com/vapor/service.git",
         "state": {
           "branch": null,
-          "revision": "281a70b69783891900be31a9e70051b6fe19e146",
-          "version": "1.0.0"
+          "revision": "4907311d7d7f609365982fa302b8b17ffdeb46da",
+          "version": "1.0.1"
         }
       },
       {
@@ -159,8 +159,8 @@
         "repositoryURL": "https://github.com/vapor/vapor.git",
         "state": {
           "branch": null,
-          "revision": "54cbf396147aba77ecb32e7fc75a3d13251551b1",
-          "version": "3.1.1"
+          "revision": "2caf16238b6613b4fffeb8a14ad1cd20cb377379",
+          "version": "3.2.0"
         }
       },
       {

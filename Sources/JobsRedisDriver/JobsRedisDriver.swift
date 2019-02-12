@@ -32,19 +32,27 @@ extension JobsRedisDriver: JobsPersistenceLayer {
         
         return database.newConnection(on: eventLoop).flatMap { conn in
             return conn.rpoplpush(source: key, destination: processing).and(result: conn)
+        }.flatMap(to: (RedisData, RedisClient).self) { redisData, conn in
+            guard let id = redisData.string else { throw Abort(.internalServerError) }
+            return conn.rawGet(id).and(result: conn)
         }.map { redisData, conn in
             conn.close()
+            
             guard let data = redisData.data else { return nil }
             let decoder = try JSONDecoder().decode(DecoderUnwrapper.self, from: data)
             return try JobStorage(from: decoder.decoder)
+        }.catchMap { _ in
+            return nil
         }
     }
     
     /// See `JobsPersistenceLayer.set`
     public func set(key: String, jobStorage: JobStorage) -> EventLoopFuture<Void> {
-        return database.newConnection(on: eventLoop).flatMap(to: RedisClient.self) { conn in
+        return database.newConnection(on: eventLoop).flatMap(to: (RedisData, RedisClient).self) { conn in
             let data = try JSONEncoder().encode(jobStorage).convertToRedisData()
-            return conn.lpush([data], into: key).transform(to: conn)
+            return conn.lpush([try jobStorage.id.convertToRedisData()], into: key).transform(to: (data, conn))
+        }.flatMap { data, conn in
+            return conn.set(jobStorage.id, to: data).transform(to: conn)
         }.map { conn in
             return conn.close()
         }
@@ -52,12 +60,15 @@ extension JobsRedisDriver: JobsPersistenceLayer {
     
     /// See `JobsPersistenceLayer.completed`
     public func completed(key: String, jobStorage: JobStorage) -> EventLoopFuture<Void> {
-        return database.newConnection(on: eventLoop).flatMap { conn in
+        return database.newConnection(on: eventLoop).flatMap(to: RedisClient.self) { conn in
             let processing = try self.processingKey(key: key).convertToRedisData()
             let count = try 1.convertToRedisData()
-            
-            guard let value = try jobStorage.stringValue()?.convertToRedisData() else { throw Abort(.internalServerError, reason: "Cannot get string value") }
-            return conn.command("LREM", [processing, count, value]).transform(to: ())
+
+            return conn.command("LREM", [processing, count, try jobStorage.id.convertToRedisData()]).transform(to: conn)
+        }.flatMap(to: RedisClient.self) { conn in
+            return conn.delete(jobStorage.id).transform(to: conn)
+        }.map { conn in
+            conn.close()
         }
     }
     
