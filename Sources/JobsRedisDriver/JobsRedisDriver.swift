@@ -66,7 +66,7 @@ extension JobsRedisDriver: JobsPersistenceLayer {
     public func completed(key: String, jobStorage: JobStorage) -> EventLoopFuture<Void> {
         return database.newConnection(on: eventLoop).flatMap(to: RedisClient.self) { conn in
             let processing = try self.processingKey(key: key).convertToRedisData()
-            let count = try 1.convertToRedisData()
+            let count = try 0.convertToRedisData()
 
             return conn.command("LREM", [processing, count, try jobStorage.id.convertToRedisData()]).transform(to: conn)
         }.flatMap(to: RedisClient.self) { conn in
