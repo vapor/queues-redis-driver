@@ -34,6 +34,7 @@ extension JobsRedisDriver: JobsPersistenceLayer {
             return conn.rpoplpush(source: key, destination: processing).and(result: conn)
         }.flatMap(to: (RedisData, RedisClient).self) { redisData, conn in
             guard let id = redisData.string else {
+                print("Could not convert ID data to string")
                 conn.close()
                 throw Abort(.internalServerError)
             }
@@ -42,10 +43,15 @@ extension JobsRedisDriver: JobsPersistenceLayer {
         }.map { redisData, conn in
             conn.close()
             
-            guard let data = redisData.data else { return nil }
+            guard let data = redisData.data else {
+                print("Could not convert redis data to Data")
+                return nil
+            }
+            
             let decoder = try JSONDecoder().decode(DecoderUnwrapper.self, from: data)
             return try JobStorage(from: decoder.decoder)
-        }.catchMap { _ in
+        }.catchMap { error in
+            print("Error getting data: \(error)")
             return nil
         }
     }
