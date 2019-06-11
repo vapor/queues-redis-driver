@@ -2,6 +2,7 @@ import XCTest
 import class Foundation.Bundle
 import JobsRedisDriver
 import Redis
+import RedisKit
 import NIO
 @testable import Jobs
 
@@ -11,7 +12,7 @@ final class JobsRedisDriverTests: XCTestCase {
     var redisDatabase: RedisDatabase!
     var jobsDriver: JobsRedisDriver!
     var jobsConfig: JobsConfig!
-    var redisConn: RedisClient!
+    var redisConn: RedisKit.RedisClient!
     
     override func setUp() {
         do {
@@ -19,7 +20,7 @@ final class JobsRedisDriverTests: XCTestCase {
             redisDatabase = try RedisDatabase(url: url)
             eventLoop = MultiThreadedEventLoopGroup(numberOfThreads: 1).next()
             jobsDriver = JobsRedisDriver(database: redisDatabase, eventLoop: eventLoop)
-            redisConn = try redisDatabase.newConnection(on: eventLoop).wait()
+            redisConn = try redisDatabase.newConnection(on: eventLoop).wait() as? RedisKit.RedisClient
             
             jobsConfig = JobsConfig()
             jobsConfig.add(EmailJob())
@@ -29,9 +30,9 @@ final class JobsRedisDriverTests: XCTestCase {
     }
     
     override func tearDown() {
-        try! redisConn.delete("key").wait()
-        try! redisConn.delete("key-processing").wait()
-        redisConn.close()
+        _ = try! redisConn.delete(["key"]).wait()
+        _ = try! redisConn.delete(["key-processing"]).wait()
+        
     }
 
     func testSettingValue() throws {
@@ -41,14 +42,14 @@ final class JobsRedisDriverTests: XCTestCase {
         
         try jobsDriver.set(key: "key", jobStorage: jobStorage).wait()
         
-        XCTAssertNotNil(try redisConn.rawGet(jobStorage.id).wait().string)
+        XCTAssertNotNil(try redisConn.get(jobStorage.id).wait())
         
-        guard let jobId = try redisConn.rPop("key").wait().string else {
+        guard let jobId = try redisConn.rpop(from: "key").wait().string else {
             XCTFail()
             return
         }
         
-        guard let retrievedJobData = try redisConn.rawGet(jobId).wait().data else {
+        guard let retrievedJobData = try redisConn.get(jobId).wait()?.data(using: .utf8) else {
             XCTFail()
             return
         }
@@ -62,7 +63,7 @@ final class JobsRedisDriverTests: XCTestCase {
         XCTAssertEqual(retrievedJob.to, "email@email.com")
         
         //Assert that it was not added to the processing list
-        XCTAssertNil(try redisConn.lrange(list: "key-processing", range: 0...0).wait().data)
+        XCTAssertEqual(try redisConn.lrange(within: (0, 0), from: "key-processing").wait().count, 0)
     }
     
     func testGettingValue() throws {
@@ -87,11 +88,11 @@ final class JobsRedisDriverTests: XCTestCase {
         XCTAssertEqual(fetchedJob.to, "email@email.com")
         
         //Assert that the base list still has data in it and the processing list has 1
-        XCTAssertNotNil(try redisConn.lrange(list: "key", range: 0...0).wait().array)
-        XCTAssertEqual(try redisConn.lrange(list: "key-processing", range: 0...0).wait().array!.count, 1)
+        XCTAssertNotEqual(try redisConn.lrange(within: (0, 0), from: "key").wait().count, 0)
+        XCTAssertEqual(try redisConn.lrange(within: (0, 0), from: "key-processing").wait().count, 1)
         
         try jobsDriver.completed(key: "key", jobStorage: fetchedJobData).wait()
-        XCTAssertEqual(try redisConn.lrange(list: "key-processing", range: 0...0).wait().array!.count, 0)
+        XCTAssertEqual(try redisConn.lrange(within: (0, 0), from: "key-processing").wait().count, 0)
     }
     
     static var allTests = [
@@ -106,7 +107,7 @@ struct Email: Codable, JobData {
 
 struct EmailJob: Job {
     func dequeue(_ context: JobContext, _ data: Email) -> EventLoopFuture<Void> {
-        return context.eventLoop.future()
+        return context.eventLoop.makeSucceededFuture(())
     }
 }
 

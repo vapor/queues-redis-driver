@@ -11,12 +11,13 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/vapor-community/jobs.git", from: "1.0.0-alpha.1.0"),
-        .package(url: "https://github.com/vapor/redis.git", from: "3.0.0")
+        .package(url: "https://github.com/vapor/redis-kit.git", .branch("latest-redis")),
+        
     ],
     targets: [
         .target(
             name: "JobsRedisDriver",
-            dependencies: ["Jobs", "Redis"]),
+            dependencies: ["Jobs", "RedisKit"]),
         .testTarget(
             name: "JobsRedisDriverTests",
             dependencies: ["JobsRedisDriver"]),

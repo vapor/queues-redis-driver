@@ -19,6 +19,7 @@ jobs:
   bionic:
     docker:
       - image: vapor/swift:5.1-bionic
+      - image: redis:3.2
     steps:
       - checkout
       - run: apt-get update; apt-get install -y libssl-dev zlib1g-dev
@@ -27,6 +28,7 @@ jobs:
   bionic-release:
     docker:
       - image: vapor/swift:5.1-bionic
+      - image: redis:3.2
     steps:
       - checkout
       - run: apt-get update; apt-get install -y libssl-dev zlib1g-dev
