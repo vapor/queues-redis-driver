@@ -11,7 +11,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/vapor-community/jobs.git", from: "1.0.0-alpha.1.0"),
-        .package(url: "https://github.com/vapor/redis-kit.git", .branch("latest-redis")),
+        .package(url: "https://github.com/vapor/redis-kit.git", .branch("master")),
         
     ],
     targets: [

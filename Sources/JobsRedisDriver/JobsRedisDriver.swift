@@ -1,5 +1,5 @@
 import Jobs
-import Redis
+import RedisKit
 import NIO
 import Foundation
 import Vapor
@@ -7,8 +7,8 @@ import Vapor
 /// A wrapper that conforms to `JobsPersistenceLayer`
 public struct JobsRedisDriver {
     
-    /// The `RedisDatabase` to run commands on
-    let database: RedisDatabase
+    /// The `RedisClient` to run commands on
+    let client: RedisClient
     
     /// The `EventLoop` to run jobs on
     public let eventLoop: EventLoop
@@ -18,8 +18,8 @@ public struct JobsRedisDriver {
     /// - Parameters:
     ///   - database: The `RedisDatabase` to run commands on
     ///   - eventLoop: The `EventLoop` to run jobs on
-    public init(database: RedisDatabase, eventLoop: EventLoop) {
-        self.database = database
+    public init(client: RedisClient, eventLoop: EventLoop) {
+        self.client = client
         self.eventLoop = eventLoop
     }
 }
@@ -30,53 +30,43 @@ extension JobsRedisDriver: JobsPersistenceLayer {
     public func get(key: String) -> EventLoopFuture<JobStorage?> {
         let processing = processingKey(key: key)
         
-        return database.newConnection(on: eventLoop).flatMap { conn in
-            return conn.rpoplpush(source: key, destination: processing).and(value: conn)
-        }.flatMap(to: (RedisData, RedisClient).self) { redisData, conn in
+        return client.rpoplpush(from: key, to: processing).flatMap { redisData -> EventLoopFuture<String?> in
             guard let id = redisData.string else {
-                conn.close()
-                throw Abort(.internalServerError)
+                return self.eventLoop.makeFailedFuture(Abort(.internalServerError))
             }
             
-            return conn.rawGet(id).and(value: conn)
-        }.map { redisData, conn in
-            conn.close()
-            
-            guard let data = redisData.data else {
+            return self.client.get(id)
+        }.flatMapThrowing { redisData in
+            guard let data = redisData?.data(using: .utf8) else {
                 print("Could not convert redis data to Data")
                 return nil
             }
             
             let decoder = try JSONDecoder().decode(DecoderUnwrapper.self, from: data)
             return try JobStorage(from: decoder.decoder)
-        }.catchMap { error in
-            return nil
+        }.flatMapError { _ in
+            return self.eventLoop.makeSucceededFuture(nil)
         }
     }
     
     /// See `JobsPersistenceLayer.set`
     public func set(key: String, jobStorage: JobStorage) -> EventLoopFuture<Void> {
-        return database.newConnection(on: eventLoop).flatMap(to: (RedisData, RedisClient).self) { conn in
-            let data = try JSONEncoder().encode(jobStorage).convertToRedisData()
-            return conn.set(jobStorage.id, to: data).transform(to: (data, conn))
-        }.flatMap { data, conn in
-            return conn.lpush([try jobStorage.id.convertToRedisData()], into: key).transform(to: conn)
-        }.map { conn in
-            return conn.close()
+        guard let data = try? JSONEncoder().encode(jobStorage).convertedToRESPValue() else {
+            return self.eventLoop.makeFailedFuture(JobsRedisDriverError.couldNotConvertData)
+        }
+        
+        return client.set(jobStorage.id, to: data).flatMap { data in
+            return self.client.lpush([jobStorage.id.convertedToRESPValue()], into: key).transform(to: ())
         }
     }
     
     /// See `JobsPersistenceLayer.completed`
     public func completed(key: String, jobStorage: JobStorage) -> EventLoopFuture<Void> {
-        return database.newConnection(on: eventLoop).flatMap(to: RedisClient.self) { conn in
-            let processing = try self.processingKey(key: key).convertToRedisData()
-            let count = try 0.convertToRedisData()
-
-            return conn.command("LREM", [processing, count, try jobStorage.id.convertToRedisData()]).transform(to: conn)
-        }.flatMap(to: RedisClient.self) { conn in
-            return conn.delete(jobStorage.id).transform(to: conn)
-        }.map { conn in
-            conn.close()
+        let processing = self.processingKey(key: key)
+        let jobData = jobStorage.id.convertedToRESPValue()
+        
+        return client.lrem(jobData, from: processing, count: 0).flatMap { _ in
+            return self.client.delete([jobStorage.id]).transform(to: ())
         }
     }
     

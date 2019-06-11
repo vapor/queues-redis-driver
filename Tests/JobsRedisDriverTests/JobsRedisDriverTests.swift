@@ -1,7 +1,6 @@
 import XCTest
 import class Foundation.Bundle
 import JobsRedisDriver
-import Redis
 import RedisKit
 import NIO
 @testable import Jobs
@@ -9,18 +8,21 @@ import NIO
 final class JobsRedisDriverTests: XCTestCase {
     
     var eventLoop: EventLoop!
-    var redisDatabase: RedisDatabase!
     var jobsDriver: JobsRedisDriver!
     var jobsConfig: JobsConfig!
-    var redisConn: RedisKit.RedisClient!
+    var redisConn: RedisClient!
     
     override func setUp() {
         do {
-            guard let url = URL(string: "redis://localhost:6379") else { return }
-            redisDatabase = try RedisDatabase(url: url)
             eventLoop = MultiThreadedEventLoopGroup(numberOfThreads: 1).next()
-            jobsDriver = JobsRedisDriver(database: redisDatabase, eventLoop: eventLoop)
-            redisConn = try redisDatabase.newConnection(on: eventLoop).wait() as? RedisKit.RedisClient
+            guard let url = URL(string: "redis://127.0.0.1:6379") else { return }
+            guard let configuration = RedisConfiguration(url: url) else { return }
+            
+            let client = RedisConnectionFactory(config: configuration, eventLoop: eventLoop)
+            let conn = try client.makeConnection().wait()
+            
+            redisConn = conn
+            jobsDriver = JobsRedisDriver(client: conn, eventLoop: eventLoop)
             
             jobsConfig = JobsConfig()
             jobsConfig.add(EmailJob())
@@ -32,13 +34,16 @@ final class JobsRedisDriverTests: XCTestCase {
     override func tearDown() {
         _ = try! redisConn.delete(["key"]).wait()
         _ = try! redisConn.delete(["key-processing"]).wait()
-        
     }
 
     func testSettingValue() throws {
         let job = Email(to: "email@email.com")
         let jobData = try JSONEncoder().encode(job)
-        let jobStorage = JobStorage(key: "key", data: jobData, maxRetryCount: 1, id: UUID().uuidString, jobName: EmailJob.jobName)
+        let jobStorage = JobStorage(key: "key",
+                                    data: jobData,
+                                    maxRetryCount: 1,
+                                    id: UUID().uuidString,
+                                    jobName: EmailJob.jobName)
         
         try jobsDriver.set(key: "key", jobStorage: jobStorage).wait()
         
