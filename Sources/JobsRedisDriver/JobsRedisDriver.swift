@@ -58,9 +58,9 @@ extension JobsRedisDriver: JobsPersistenceLayer {
     public func set(key: String, jobStorage: JobStorage) -> EventLoopFuture<Void> {
         return database.newConnection(on: eventLoop).flatMap(to: (RedisData, RedisClient).self) { conn in
             let data = try JSONEncoder().encode(jobStorage).convertToRedisData()
-            return conn.lpush([try jobStorage.id.convertToRedisData()], into: key).transform(to: (data, conn))
+            return conn.set(jobStorage.id, to: data).transform(to: (data, conn))
         }.flatMap { data, conn in
-            return conn.set(jobStorage.id, to: data).transform(to: conn)
+            return conn.lpush([try jobStorage.id.convertToRedisData()], into: key).transform(to: conn)
         }.map { conn in
             return conn.close()
         }
