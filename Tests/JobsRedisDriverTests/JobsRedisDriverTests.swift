@@ -4,6 +4,16 @@ import JobsRedisDriver
 import RedisKit
 import NIO
 @testable import Jobs
+import Logging
+
+let isLoggingConfigured: Bool = {
+    LoggingSystem.bootstrap { label in
+        var handler = StreamLogHandler.standardOutput(label: label)
+        handler.logLevel = .debug
+        return handler
+    }
+    return true
+}()
 
 final class JobsRedisDriverTests: XCTestCase {
     
@@ -13,6 +23,8 @@ final class JobsRedisDriverTests: XCTestCase {
     var redisConn: RedisClient!
     
     override func setUp() {
+        XCTAssert(isLoggingConfigured)
+
         do {
             eventLoop = MultiThreadedEventLoopGroup(numberOfThreads: 1).next()
             guard let url = URL(string: "redis://127.0.0.1:6379") else { return }

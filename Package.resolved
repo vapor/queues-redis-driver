@@ -132,8 +132,8 @@
         "repositoryURL": "https://gitlab.com/mordil/swift-redis-nio-client.git",
         "state": {
           "branch": null,
-          "revision": "23a8d4455f45dc1a49df7289dd45b4fe1eaec505",
-          "version": "1.0.0-alpha.1"
+          "revision": "30733dea02830129064210f32ba41738b9878bbf",
+          "version": "1.0.0-alpha.2"
         }
       },
       {
