@@ -1,4 +1,4 @@
-// swift-tools-version:4.2
+// swift-tools-version:5.1
 
 import PackageDescription
 
@@ -10,13 +10,13 @@ let package = Package(
             targets: ["JobsRedisDriver"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/vapor-community/jobs.git", from: "0.2.0"),
-        .package(url: "https://github.com/vapor/redis.git", from: "3.0.0")
+        .package(url: "https://github.com/vapor-community/jobs.git", from: "1.0.0-alpha.1.0"),
+        .package(url: "https://github.com/vapor/redis-kit.git", .branch("master"))
     ],
     targets: [
         .target(
             name: "JobsRedisDriver",
-            dependencies: ["Jobs", "Redis"]),
+            dependencies: ["Jobs", "RedisKit"]),
         .testTarget(
             name: "JobsRedisDriverTests",
             dependencies: ["JobsRedisDriver"]),
