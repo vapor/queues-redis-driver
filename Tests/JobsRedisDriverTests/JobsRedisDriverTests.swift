@@ -30,7 +30,7 @@ final class JobsRedisDriverTests: XCTestCase {
             guard let url = URL(string: "redis://127.0.0.1:6379") else { return }
             guard let configuration = RedisConfiguration(url: url) else { return }
             
-            let client = RedisConnectionFactory(config: configuration, eventLoop: eventLoop)
+            let client = RedisConnectionSource(config: configuration, eventLoop: eventLoop)
             let conn = try client.makeConnection().wait()
             
             redisConn = conn
