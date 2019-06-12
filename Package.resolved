@@ -51,7 +51,7 @@
         "repositoryURL": "https://github.com/vapor/redis-kit.git",
         "state": {
           "branch": "master",
-          "revision": "38a206aee6151ffd163bc377d4453b5c41128438",
+          "revision": "3f18ba44f5e1773a56840a286b4024c028aaab67",
           "version": null
         }
       },
@@ -141,8 +141,8 @@
         "repositoryURL": "https://github.com/vapor/vapor.git",
         "state": {
           "branch": null,
-          "revision": "22bd569b47fbbaa8bb97ce4a5129bba221f9f544",
-          "version": "4.0.0-alpha.1.1"
+          "revision": "95d6c7e2899bb1979a708150d9390e2795b5ae19",
+          "version": "4.0.0-alpha.1.2"
         }
       }
     ]

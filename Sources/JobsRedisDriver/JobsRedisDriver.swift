@@ -51,12 +51,14 @@ extension JobsRedisDriver: JobsPersistenceLayer {
     
     /// See `JobsPersistenceLayer.set`
     public func set(key: String, jobStorage: JobStorage) -> EventLoopFuture<Void> {
-        guard let data = try? JSONEncoder().encode(jobStorage).convertedToRESPValue() else {
-            return self.eventLoop.makeFailedFuture(JobsRedisDriverError.couldNotConvertData)
-        }
-        
-        return client.set(jobStorage.id, to: data).flatMap { data in
-            return self.client.lpush([jobStorage.id.convertedToRESPValue()], into: key).transform(to: ())
+        do {
+            let data = try JSONEncoder().encode(jobStorage).convertedToRESPValue()
+            
+            return client.set(jobStorage.id, to: data).flatMap { data in
+                return self.client.lpush([jobStorage.id.convertedToRESPValue()], into: key).transform(to: ())
+            }
+        } catch {
+            return self.eventLoop.makeFailedFuture(error)
         }
     }
     
