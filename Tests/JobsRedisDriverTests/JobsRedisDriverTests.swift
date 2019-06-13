@@ -19,7 +19,7 @@ final class JobsRedisDriverTests: XCTestCase {
     
     var eventLoop: EventLoop!
     var jobsDriver: JobsRedisDriver!
-    var jobsConfig: JobsConfig!
+    var jobsConfig: JobsConfiguration!
     var redisConn: RedisClient!
     
     override func setUp() {
@@ -36,7 +36,7 @@ final class JobsRedisDriverTests: XCTestCase {
             redisConn = conn
             jobsDriver = JobsRedisDriver(client: conn, eventLoop: eventLoop)
             
-            jobsConfig = JobsConfig()
+            jobsConfig = JobsConfiguration()
             jobsConfig.add(EmailJob())
         } catch {
             XCTFail()
@@ -55,7 +55,8 @@ final class JobsRedisDriverTests: XCTestCase {
                                     data: jobData,
                                     maxRetryCount: 1,
                                     id: UUID().uuidString,
-                                    jobName: EmailJob.jobName)
+                                    jobName: EmailJob.jobName,
+                                    delayUntil: nil)
         
         try jobsDriver.set(key: "key", jobStorage: jobStorage).wait()
         
@@ -90,8 +91,8 @@ final class JobsRedisDriverTests: XCTestCase {
         let firstJobData = try JSONEncoder().encode(firstJob)
         let secondJobData = try JSONEncoder().encode(secondJob)
         
-        let firstJobStorage = JobStorage(key: "key", data: firstJobData, maxRetryCount: 1, id: UUID().uuidString, jobName: EmailJob.jobName)
-        let secondJobStorage = JobStorage(key: "key", data: secondJobData, maxRetryCount: 1, id: UUID().uuidString, jobName: EmailJob.jobName)
+        let firstJobStorage = JobStorage(key: "key", data: firstJobData, maxRetryCount: 1, id: UUID().uuidString, jobName: EmailJob.jobName, delayUntil: nil)
+        let secondJobStorage = JobStorage(key: "key", data: secondJobData, maxRetryCount: 1, id: UUID().uuidString, jobName: EmailJob.jobName, delayUntil: nil)
         
         try jobsDriver.set(key: "key", jobStorage: firstJobStorage).wait()
         try jobsDriver.set(key: "key", jobStorage: secondJobStorage).wait()
@@ -112,9 +113,34 @@ final class JobsRedisDriverTests: XCTestCase {
         XCTAssertEqual(try redisConn.lrange(within: (0, 0), from: "key-processing").wait().count, 0)
     }
     
+    func testRequeue() throws {
+        let job = Email(to: "email@email.com")
+        let jobData = try JSONEncoder().encode(job)
+        let jobStorage = JobStorage(key: "key",
+                                    data: jobData,
+                                    maxRetryCount: 1,
+                                    id: UUID().uuidString,
+                                    jobName: EmailJob.jobName,
+                                    delayUntil: Date(timeIntervalSinceNow: 60))
+        
+        try jobsDriver.set(key: "key", jobStorage: jobStorage).wait()
+        
+        XCTAssertNotNil(try redisConn.get(jobStorage.id).wait())
+        XCTAssertNotNil(try jobsDriver.get(key: "key").wait())
+        XCTAssertEqual(try redisConn.lrange(within: (0, 0), from: "key").wait().count, 0)
+        XCTAssertEqual(try redisConn.lrange(within: (0, 0), from: "key-processing").wait().count, 1)
+        
+        try jobsDriver.requeue(key: "key", jobStorage: jobStorage).wait()
+        
+        XCTAssertNotNil(try redisConn.get(jobStorage.id).wait())
+        XCTAssertEqual(try redisConn.lrange(within: (0, 0), from: "key").wait().count, 1)
+        XCTAssertEqual(try redisConn.lrange(within: (0, 0), from: "key-processing").wait().count, 0)
+    }
+    
     static var allTests = [
         ("testSettingValue", testSettingValue),
-        ("testGettingValue", testGettingValue)
+        ("testGettingValue", testGettingValue),
+        ("testRequeue", testRequeue)
     ]
 }
 

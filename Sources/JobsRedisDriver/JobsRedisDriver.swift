@@ -25,7 +25,7 @@ public struct JobsRedisDriver {
 }
 
 extension JobsRedisDriver: JobsPersistenceLayer {
-    
+
     /// See `JobsPersistenceLayer.get`
     public func get(key: String) -> EventLoopFuture<JobStorage?> {
         let processing = processingKey(key: key)
@@ -75,6 +75,19 @@ extension JobsRedisDriver: JobsPersistenceLayer {
     /// See `JobsPersistenceLayer.processingKey`
     public func processingKey(key: String) -> String {
         return key + "-processing"
+    }
+    
+    /// See `JobsPersistenceLayer.requeue`
+    public func requeue(key: String, jobStorage: JobStorage) -> EventLoopFuture<Void> {
+        let processing = self.processingKey(key: key)
+        let jobData = jobStorage.id.convertedToRESPValue()
+        
+        // Remove the job from the processing list
+        return client.lrem(jobData, from: processing, count: 0).flatMap { _ in
+            
+            // Add the job back to the queue list
+            return self.client.lpush([jobData], into: key).transform(to: ())
+        }
     }
 }
 
