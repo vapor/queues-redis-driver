@@ -5,47 +5,52 @@ import Foundation
 import Vapor
 
 /// A wrapper that conforms to `JobsPersistenceLayer`
-public struct JobsRedisDriver {
-    
+public struct JobsRedisDriver: JobsDriver {
     /// The `RedisClient` to run commands on
-    let client: RedisClient
+    public let client: RedisClient
+
+    let logger: Logger
     
     /// The `EventLoop` to run jobs on
-    public let eventLoop: EventLoop
+    public var eventLoop: EventLoop {
+        return self.client.eventLoop
+    }
     
     /// Creates a new `RedisJobs` instance
     ///
     /// - Parameters:
-    ///   - database: The `RedisDatabase` to run commands on
-    ///   - eventLoop: The `EventLoop` to run jobs on
-    public init(client: RedisClient, eventLoop: EventLoop) {
+    ///   - client: The `RedisClient` to use
+    public init(client: RedisClient) {
         self.client = client
-        self.eventLoop = eventLoop
+        self.logger = Logger(label: "codes.vapor.jobs-redis-driver")
     }
-}
-
-extension JobsRedisDriver: JobsPersistenceLayer {
 
     /// See `JobsPersistenceLayer.get`
     public func get(key: String) -> EventLoopFuture<JobStorage?> {
         let processing = processingKey(key: key)
-        
-        return client.rpoplpush(from: key, to: processing).flatMap { redisData -> EventLoopFuture<String?> in
+        return self.client.rpoplpush(from: key, to: processing).flatMap { redisData -> EventLoopFuture<String?> in
+            guard !redisData.isNull else {
+                return self.eventLoop.makeSucceededFuture(nil)
+            }
+
             guard let id = redisData.string else {
+                self.logger.error("Could not convert RedisData to string: \(redisData)")
                 return self.eventLoop.makeFailedFuture(Abort(.internalServerError))
             }
             
             return self.client.get(id)
-        }.flatMapThrowing { redisData in
-            guard let data = redisData?.data(using: .utf8) else {
-                print("Could not convert redis data to Data")
+        }.flatMapThrowing { redisData -> JobStorage? in
+            guard let redisData = redisData else {
                 return nil
+            }
+
+            guard let data = redisData.data(using: .utf8) else {
+                self.logger.error("Could not convert redis data to string: \(redisData)")
+                throw Abort(.internalServerError)
             }
             
             let decoder = try JSONDecoder().decode(DecoderUnwrapper.self, from: data)
             return try JobStorage(from: decoder.decoder)
-        }.flatMapError { _ in
-            return self.eventLoop.makeSucceededFuture(nil)
         }
     }
     
