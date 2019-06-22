@@ -30,11 +30,11 @@
       },
       {
         "package": "jobs",
-        "repositoryURL": "https://github.com/vapor-community/jobs.git",
+        "repositoryURL": "https://github.com/vapor/jobs.git",
         "state": {
           "branch": null,
-          "revision": "4f42614a3207ba7084c2da1abd42680f55c385d7",
-          "version": "1.0.0-alpha.1.1"
+          "revision": "bb41a64d2d8a5d324f7f8e435668980bba553ce8",
+          "version": "1.0.0-alpha.2"
         }
       },
       {
@@ -51,8 +51,8 @@
         "repositoryURL": "https://github.com/vapor/redis-kit.git",
         "state": {
           "branch": null,
-          "revision": "3f18ba44f5e1773a56840a286b4024c028aaab67",
-          "version": "1.0.0-alpha.1"
+          "revision": "4f88f929a25d9bbe78432f3132bf38992321f8a3",
+          "version": "1.0.0-alpha.1.1"
         }
       },
       {
@@ -87,8 +87,8 @@
         "repositoryURL": "https://github.com/apple/swift-nio.git",
         "state": {
           "branch": null,
-          "revision": "ed50f8a41ece8db20afa8d1188fc0960f95263df",
-          "version": "2.2.0"
+          "revision": "7f20464df31e85f86bedf4a8afdd1785e0cb5059",
+          "version": "2.3.0"
         }
       },
       {
@@ -114,8 +114,8 @@
         "repositoryURL": "https://github.com/apple/swift-nio-http2.git",
         "state": {
           "branch": null,
-          "revision": "c2638ff60910a0d468ff9a882c8586a827da1a0d",
-          "version": "1.2.1"
+          "revision": "06880b0abdc5d2aa68b96d6b3b29b089cb423922",
+          "version": "1.3.0"
         }
       },
       {
@@ -123,8 +123,8 @@
         "repositoryURL": "https://github.com/apple/swift-nio-ssl.git",
         "state": {
           "branch": null,
-          "revision": "dc23a24fbe5d59429eacf45a9add82fdf6ab90e6",
-          "version": "2.1.0"
+          "revision": "77173ac9038e8e9b92f3efe8780923447e3c890b",
+          "version": "2.1.1"
         }
       },
       {
@@ -141,8 +141,8 @@
         "repositoryURL": "https://github.com/vapor/vapor.git",
         "state": {
           "branch": null,
-          "revision": "95d6c7e2899bb1979a708150d9390e2795b5ae19",
-          "version": "4.0.0-alpha.1.2"
+          "revision": "b95e23744eeff68768a3ff7fc5dce7d66e318f93",
+          "version": "4.0.0-alpha.1.3"
         }
       }
     ]

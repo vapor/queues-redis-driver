@@ -1,0 +1,9 @@
+version: '2'
+
+services:
+  redis-5:
+    image: redis:5
+    ports:
+      - 6379:6379
+
+

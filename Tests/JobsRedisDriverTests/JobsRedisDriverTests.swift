@@ -16,38 +16,6 @@ let isLoggingConfigured: Bool = {
 }()
 
 final class JobsRedisDriverTests: XCTestCase {
-    
-    var eventLoop: EventLoop!
-    var jobsDriver: JobsRedisDriver!
-    var jobsConfig: JobsConfiguration!
-    var redisConn: RedisClient!
-    
-    override func setUp() {
-        XCTAssert(isLoggingConfigured)
-
-        do {
-            eventLoop = MultiThreadedEventLoopGroup(numberOfThreads: 1).next()
-            guard let url = URL(string: "redis://127.0.0.1:6379") else { return }
-            guard let configuration = RedisConfiguration(url: url) else { return }
-            
-            let client = RedisConnectionSource(config: configuration, eventLoop: eventLoop)
-            let conn = try client.makeConnection().wait()
-            
-            redisConn = conn
-            jobsDriver = JobsRedisDriver(client: conn, eventLoop: eventLoop)
-            
-            jobsConfig = JobsConfiguration()
-            jobsConfig.add(EmailJob())
-        } catch {
-            XCTFail()
-        }
-    }
-    
-    override func tearDown() {
-        _ = try! redisConn.delete(["key"]).wait()
-        _ = try! redisConn.delete(["key-processing"]).wait()
-    }
-
     func testSettingValue() throws {
         let job = Email(to: "email@email.com")
         let jobData = try JSONEncoder().encode(job)
@@ -136,12 +104,62 @@ final class JobsRedisDriverTests: XCTestCase {
         XCTAssertEqual(try redisConn.lrange(within: (0, 0), from: "key").wait().count, 1)
         XCTAssertEqual(try redisConn.lrange(within: (0, 0), from: "key-processing").wait().count, 0)
     }
-    
-    static var allTests = [
-        ("testSettingValue", testSettingValue),
-        ("testGettingValue", testGettingValue),
-        ("testRequeue", testRequeue)
-    ]
+
+    func testJobsService() throws {
+        let worker = JobsWorker(
+            configuration: self.jobsConfig,
+            driver: self.jobsDriver,
+            context: .init(eventLoop: self.eventLoop),
+            logger: Logger(label: "codes.vapor.test"),
+            on: self.eventLoop
+        )
+        worker.start(on: .default)
+
+        let jobs = JobsService(configuration: self.jobsConfig, driver: self.jobsDriver)
+
+        let dequeueCount = EmailJob.dequeueCount
+        try jobs.dispatch(EmailJob.Data(to: "foo@vapor.codes")).wait()
+
+        worker.shutdown()
+        try worker.onShutdown.wait()
+
+        XCTAssertEqual(EmailJob.dequeueCount, dequeueCount + 1)
+    }
+
+    // MARK: Setup
+
+    var eventLoopGroup: EventLoopGroup!
+    var eventLoop: EventLoop {
+        self.eventLoopGroup.next()
+    }
+    var jobsDriver: JobsRedisDriver!
+    var jobsConfig: JobsConfiguration!
+    var redisConn: RedisClient {
+        return self.connectionPool
+    }
+    var connectionPool: ConnectionPool<RedisConnectionSource>!
+
+    override func setUp() {
+        XCTAssert(isLoggingConfigured)
+
+        self.eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        guard let url = URL(string: "redis://127.0.0.1:6379") else { return }
+        guard let configuration = RedisConfiguration(url: url) else { return }
+
+        let source = RedisConnectionSource(config: configuration, eventLoop: eventLoop)
+        self.connectionPool = .init(source: source)
+        self.jobsDriver = JobsRedisDriver(client: self.connectionPool)
+
+        self.jobsConfig = JobsConfiguration()
+        self.jobsConfig.add(EmailJob())
+    }
+
+    override func tearDown() {
+        _ = try! redisConn.delete(["key"]).wait()
+        _ = try! redisConn.delete(["key-processing"]).wait()
+        try! self.connectionPool.close().wait()
+        try! self.eventLoopGroup.syncShutdownGracefully()
+    }
 }
 
 struct Email: Codable, JobData {
@@ -149,7 +167,9 @@ struct Email: Codable, JobData {
 }
 
 struct EmailJob: Job {
+    static var dequeueCount = 0
     func dequeue(_ context: JobContext, _ data: Email) -> EventLoopFuture<Void> {
+        EmailJob.dequeueCount += 1
         return context.eventLoop.makeSucceededFuture(())
     }
 }

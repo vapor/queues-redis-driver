@@ -3,5 +3,6 @@ import XCTest
 import JobsRedisDriverTests
 
 var tests = [XCTestCaseEntry]()
-tests += JobsRedisDriverTests.allTests()
+tests += JobsRedisDriverTests.__allTests()
+
 XCTMain(tests)
