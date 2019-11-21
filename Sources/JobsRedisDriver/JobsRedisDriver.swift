@@ -4,38 +4,40 @@ import NIO
 import Foundation
 import Vapor
 
-/// A wrapper that conforms to `JobsPersistenceLayer`
+/// A wrapper that conforms to `JobsDriver`
 public struct JobsRedisDriver: JobsDriver {
     /// The `RedisClient` to run commands on
     public let client: RedisClient
-
-    let logger: Logger
     
-    /// The `EventLoop` to run jobs on
-    public var eventLoop: EventLoop {
-        return self.client.eventLoop
-    }
+    /// The event loop group
+    public let eventLoopGroup: EventLoopGroup
+    
+    /// The logger
+    let logger: Logger
     
     /// Creates a new `RedisJobs` instance
     ///
     /// - Parameters:
     ///   - client: The `RedisClient` to use
-    public init(client: RedisClient) {
+    public init(client: RedisClient, eventLoopGroup: EventLoopGroup) {
         self.client = client
+        self.eventLoopGroup = eventLoopGroup
         self.logger = Logger(label: "codes.vapor.jobs-redis-driver")
     }
-
-    /// See `JobsPersistenceLayer.get`
-    public func get(key: String) -> EventLoopFuture<JobStorage?> {
+    
+    /// See `JobsDriver.get`
+    public func get(key: String, eventLoop: JobsEventLoopPreference) -> EventLoopFuture<JobStorage?> {
         let processing = processingKey(key: key)
+        let el = eventLoop.delegate(for: self.eventLoopGroup)
+        
         return self.client.rpoplpush(from: key, to: processing).flatMap { redisData -> EventLoopFuture<String?> in
             guard !redisData.isNull else {
-                return self.eventLoop.makeSucceededFuture(nil)
+                return el.makeSucceededFuture(nil)
             }
 
             guard let id = redisData.string else {
                 self.logger.error("Could not convert RedisData to string: \(redisData)")
-                return self.eventLoop.makeFailedFuture(Abort(.internalServerError))
+                return el.makeFailedFuture(Abort(.internalServerError))
             }
             
             return self.client.get(id)
@@ -54,38 +56,33 @@ public struct JobsRedisDriver: JobsDriver {
         }
     }
     
-    /// See `JobsPersistenceLayer.set`
-    public func set(key: String, jobStorage: JobStorage) -> EventLoopFuture<Void> {
+    /// See `JobsDriver.set`
+    public func set(key: String, job: JobStorage, eventLoop: JobsEventLoopPreference) -> EventLoopFuture<Void> {
         do {
-            let data = try JSONEncoder().encode(jobStorage).convertedToRESPValue()
+            let data = try JSONEncoder().encode(job).convertedToRESPValue()
             
-            return client.set(jobStorage.id, to: data).flatMap { data in
-                return self.client.lpush([jobStorage.id.convertedToRESPValue()], into: key).transform(to: ())
+            return client.set(job.id, to: data).flatMap { data in
+                return self.client.lpush([job.id.convertedToRESPValue()], into: key).transform(to: ())
             }
         } catch {
-            return self.eventLoop.makeFailedFuture(error)
+            return eventLoop.delegate(for: self.eventLoopGroup).makeFailedFuture(error)
         }
     }
     
-    /// See `JobsPersistenceLayer.completed`
-    public func completed(key: String, jobStorage: JobStorage) -> EventLoopFuture<Void> {
+    /// See `JobsDriver.completed`
+    public func completed(key: String, job: JobStorage, eventLoop: JobsEventLoopPreference) -> EventLoopFuture<Void> {
         let processing = self.processingKey(key: key)
-        let jobData = jobStorage.id.convertedToRESPValue()
+        let jobData = job.id.convertedToRESPValue()
         
         return client.lrem(jobData, from: processing, count: 0).flatMap { _ in
-            return self.client.delete([jobStorage.id]).transform(to: ())
+            return self.client.delete([job.id]).transform(to: ())
         }
     }
     
-    /// See `JobsPersistenceLayer.processingKey`
-    public func processingKey(key: String) -> String {
-        return key + "-processing"
-    }
-    
-    /// See `JobsPersistenceLayer.requeue`
-    public func requeue(key: String, jobStorage: JobStorage) -> EventLoopFuture<Void> {
+    /// See `JobsDriver.requeue`
+    public func requeue(key: String, job: JobStorage, eventLoop: JobsEventLoopPreference) -> EventLoopFuture<Void> {
         let processing = self.processingKey(key: key)
-        let jobData = jobStorage.id.convertedToRESPValue()
+        let jobData = job.id.convertedToRESPValue()
         
         // Remove the job from the processing list
         return client.lrem(jobData, from: processing, count: 0).flatMap { _ in
@@ -93,6 +90,11 @@ public struct JobsRedisDriver: JobsDriver {
             // Add the job back to the queue list
             return self.client.lpush([jobData], into: key).transform(to: ())
         }
+    }
+    
+    /// See `JobsDriver.processingKey`
+    public func processingKey(key: String) -> String {
+        return key + "-processing"
     }
 }
 
