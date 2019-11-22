@@ -9,18 +9,22 @@ let package = Package(
     products: [
         .library(
             name: "JobsRedisDriver",
-            targets: ["JobsRedisDriver"]),
+            targets: ["JobsRedisDriver"]
+        )
     ],
     dependencies: [
-        .package(url: "https://github.com/vapor/jobs.git", from: "1.0.0-beta.1"),
-        .package(url: "https://github.com/vapor/redis-kit.git", from: "1.0.0-beta.1")
+        .package(url: "https://github.com/vapor/vapor.git", .branch("master")),
+        .package(url: "https://github.com/vapor/jobs.git", .branch("master")),
+        .package(url: "https://github.com/vapor/redis-kit.git", .branch("master"))
     ],
     targets: [
         .target(
             name: "JobsRedisDriver",
-            dependencies: ["Jobs", "RedisKit"]),
+            dependencies: ["Jobs", "RedisKit"]
+        ),
         .testTarget(
             name: "JobsRedisDriverTests",
-            dependencies: ["JobsRedisDriver"]),
+            dependencies: ["JobsRedisDriver", "XCTVapor"]
+        ),
     ]
 )
