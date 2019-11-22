@@ -89,7 +89,9 @@ extension _JobsRedisQueue: JobsQueue {
     }
     
     func clear(_ id: JobIdentifier) -> EventLoopFuture<Void> {
-        self.client.delete(id.key).map { _ in }
+        self.lrem(id.string, from: self.processingKey).flatMap { _ in
+            self.client.delete(id.key)
+        }.map { _ in }
     }
     
     func push(_ id: JobIdentifier) -> EventLoopFuture<Void> {
@@ -98,7 +100,7 @@ extension _JobsRedisQueue: JobsQueue {
     }
     
     func pop() -> EventLoopFuture<JobIdentifier?> {
-         self.client.rpop(from: self.key).flatMapThrowing { redisData in
+        self.client.rpoplpush(from: self.key, to: self.processingKey).flatMapThrowing { redisData in
             guard !redisData.isNull else {
                 return nil
             }
@@ -108,39 +110,10 @@ extension _JobsRedisQueue: JobsQueue {
             return .init(string: id)
         }
     }
-//
-//    func set(key: String, job: JobStorage) -> EventLoopFuture<Void> {
-//        do {
-//            let data = try JSONEncoder().encode(job).convertedToRESPValue()
-//
-//            return client.set(job.id, to: data).flatMap { data in
-//                return self.client.lpush([job.id.convertedToRESPValue()], into: key).transform(to: ())
-//            }
-//        } catch {
-//            return self.eventLoop.makeFailedFuture(error)
-//        }
-//    }
-//
-//    func completed(key: String, job: JobStorage) -> EventLoopFuture<Void> {
-//        let processing = self.processingKey(key: key)
-//        let jobData = job.id.convertedToRESPValue()
-//
-//        return client.lrem(jobData, from: processing, count: 0).flatMap { _ in
-//            return self.client.delete([job.id]).transform(to: ())
-//        }
-//    }
-//
-//    func requeue(key: String, job: JobStorage) -> EventLoopFuture<Void> {
-//        let processing = self.processingKey(key: key)
-//        let jobData = job.id.convertedToRESPValue()
-//
-//        // Remove the job from the processing list
-//        return client.lrem(jobData, from: processing, count: 0).flatMap { _ in
-//
-//            // Add the job back to the queue list
-//            return self.client.lpush([jobData], into: key).transform(to: ())
-//        }
-//    }
+    
+    var processingKey: String {
+        self.key + "-processing"
+    }
 }
 
 struct DecoderUnwrapper: Decodable {

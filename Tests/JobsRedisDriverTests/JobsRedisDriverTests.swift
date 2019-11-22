@@ -25,6 +25,40 @@ final class JobsRedisDriverTests: XCTestCase {
         try app.jobs.queue.worker.run().wait()
         XCTAssertEqual(email.sent, [.init(to: "tanner@vapor.codes")])
     }
+    
+    func testFailedJobLoss() throws {
+        let app = Application(.testing)
+        defer { app.shutdown() }
+
+        app.use(Jobs.self)
+        app.jobs.add(FailingJob())
+        try app.jobs.use(.redis(url: "redis://127.0.0.1:6379"))
+
+        app.get("test") { req in
+            req.jobs.dispatch(FailingJob.self, ["foo": "bar"])
+                .map { HTTPStatus.ok }
+        }
+
+        try app.testable().test(.GET, "test") { res in
+            XCTAssertEqual(res.status, .ok)
+        }
+        
+        do {
+            try app.jobs.queue.worker.run().wait()
+        } catch is FailingJob.Failure {
+            // pass
+        } catch {
+            XCTFail("unepxected error: \(error)")
+        }
+        
+        // ensure this failed job is still in storage
+        let redis = (app.jobs.queue as! RedisClient)
+        let keys = try redis.send(command: "KEYS", with: ["*".convertedToRESPValue()]).wait()
+        let id = keys.array![0].string!
+        let job = try redis.get(id, asJSON: JobData.self).wait()!
+        XCTAssertEqual(job.jobName, "FailingJob")
+        _ = try redis.delete(id).wait()
+    }
 }
 
 final class Email: Job {
@@ -42,5 +76,19 @@ final class Email: Job {
         self.sent.append(message)
         context.logger.info("sending email \(message)")
         return context.eventLoop.makeSucceededFuture(())
+    }
+}
+
+struct FailingJob: Job {
+    struct Failure: Error { }
+    
+    init() { }
+    
+    func dequeue(_ context: JobContext, _ message: [String: String]) -> EventLoopFuture<Void> {
+        return context.eventLoop.makeFailedFuture(Failure())
+    }
+    
+    func error(_ context: JobContext, _ error: Error, _ payload: [String : String]) -> EventLoopFuture<Void> {
+        return context.eventLoop.makeFailedFuture(Failure())
     }
 }
