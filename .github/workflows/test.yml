@@ -14,6 +14,8 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - run: swift test --enable-test-discovery --sanitize=thread
+      env:
+        REDIS_HOSTNAME: redis
   bionic:
     container: 
       image: vapor/swift:5.1-bionic
@@ -26,3 +28,5 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - run: swift test --enable-test-discovery --sanitize=thread
+      env:
+        REDIS_HOSTNAME: redis

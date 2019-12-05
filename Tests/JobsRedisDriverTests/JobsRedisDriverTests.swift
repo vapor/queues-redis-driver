@@ -10,7 +10,7 @@ final class JobsRedisDriverTests: XCTestCase {
         app.use(Jobs.self)
         let email = Email()
         app.jobs.add(email)
-        try app.jobs.use(.redis(url: "redis://127.0.0.1:6379"))
+        try app.jobs.use(.redis(url: "redis://\(hostname):6379"))
 
         app.get("send-email") { req in
             req.jobs.dispatch(Email.self, .init(to: "tanner@vapor.codes"))
@@ -32,7 +32,7 @@ final class JobsRedisDriverTests: XCTestCase {
 
         app.use(Jobs.self)
         app.jobs.add(FailingJob())
-        try app.jobs.use(.redis(url: "redis://127.0.0.1:6379"))
+        try app.jobs.use(.redis(url: "redis://\(hostname):6379"))
 
         app.get("test") { req in
             req.jobs.dispatch(FailingJob.self, ["foo": "bar"])
@@ -59,6 +59,10 @@ final class JobsRedisDriverTests: XCTestCase {
         XCTAssertEqual(job.jobName, "FailingJob")
         _ = try redis.delete(id).wait()
     }
+}
+
+var hostname: String {
+    ProcessInfo.processInfo.environment["REDIS_HOSTNAME"] ?? "localhost"
 }
 
 final class Email: Job {
