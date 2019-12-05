@@ -3,6 +3,7 @@ import RedisKit
 import NIO
 import Foundation
 import Vapor
+import AsyncKit
 
 struct InvalidRedisURL: Error {
     let url: String
