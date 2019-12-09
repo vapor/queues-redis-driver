@@ -8,24 +8,24 @@ struct InvalidRedisURL: Error {
     let url: String
 }
 
-extension JobsDriverFactory {
-    public static func redis(url string: String) throws -> JobsDriverFactory {
+extension Application.Jobs.Provider {
+    public static func redis(url string: String) throws -> Self {
         guard let url = URL(string: string) else {
             throw InvalidRedisURL(url: string)
         }
         return try .redis(url: url)
     }
     
-    public static func redis(url: URL) throws -> JobsDriverFactory {
+    public static func redis(url: URL) throws -> Self {
         guard let configuration = RedisConfiguration(url: url) else {
             throw InvalidRedisURL(url: url.absoluteString)
         }
         return .redis(configuration)
     }
     
-    public static func redis(_ configuration: RedisConfiguration) -> JobsDriverFactory {
+    public static func redis(_ configuration: RedisConfiguration) -> Self {
         .init {
-            JobsRedisDriver(configuration: configuration, on: $0.application.eventLoopGroup)
+            $0.jobs.use(custom: JobsRedisDriver(configuration: configuration, on: $0.eventLoopGroup))
         }
     }
 }
@@ -62,8 +62,8 @@ struct _JobsRedisQueue {
 }
 
 extension _JobsRedisQueue: RedisClient {
-    func send(command: String, with arguments: [RESPValue]) -> EventLoopFuture<RESPValue> {
-        self.client.send(command: command, with: arguments)
+    func send(command: String, with arguments: [RESPValue], logger: Logger) -> EventLoopFuture<RESPValue> {
+        self.client.send(command: command, with: arguments, logger: logger)
     }
 }
 

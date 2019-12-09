@@ -7,9 +7,9 @@ final class JobsRedisDriverTests: XCTestCase {
         let app = Application(.testing)
         defer { app.shutdown() }
 
-        app.use(Jobs.self)
         let email = Email()
         app.jobs.add(email)
+
         try app.jobs.use(.redis(url: "redis://\(hostname):6379"))
 
         app.get("send-email") { req in
@@ -30,7 +30,6 @@ final class JobsRedisDriverTests: XCTestCase {
         let app = Application(.testing)
         defer { app.shutdown() }
 
-        app.use(Jobs.self)
         app.jobs.add(FailingJob())
         try app.jobs.use(.redis(url: "redis://\(hostname):6379"))
 
