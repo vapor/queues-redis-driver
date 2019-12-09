@@ -62,8 +62,8 @@ struct _JobsRedisQueue {
 }
 
 extension _JobsRedisQueue: RedisClient {
-    func send(command: String, with arguments: [RESPValue], logger: Logger) -> EventLoopFuture<RESPValue> {
-        self.client.send(command: command, with: arguments, logger: logger)
+    func send(command: String, with arguments: [RESPValue]/*, logger: Logger*/) -> EventLoopFuture<RESPValue> {
+        self.client.send(command: command, with: arguments) // , logger: logger)
     }
 }
 
