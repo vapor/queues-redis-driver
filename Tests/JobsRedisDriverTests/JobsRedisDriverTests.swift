@@ -74,7 +74,7 @@ final class JobsRedisDriverTests: XCTestCase {
             .dispatch(Promise.self, "test")
             .wait()
 
-        try XCTAssertEqual(promise.promise.futureResult.wait(), "test")
+        try XCTAssertEqual(promise.future.wait(), "test")
     }
 }
 
@@ -83,7 +83,11 @@ var hostname: String {
 }
 
 final class Promise: Job {
-    let promise: EventLoopPromise<String>
+    private let promise: EventLoopPromise<String>
+
+    var future: EventLoopFuture<String> {
+        self.promise.futureResult
+    }
 
     init(on eventLoop: EventLoop) {
         self.promise = eventLoop.makePromise()
@@ -94,8 +98,8 @@ final class Promise: Job {
         context.logger.info("promise succeeded \(message)")
         return context.eventLoop.makeSucceededFuture(())
     }
-
 }
+
 final class Email: Job {
     struct Message: Codable, Equatable {
         let to: String
