@@ -58,6 +58,24 @@ final class JobsRedisDriverTests: XCTestCase {
         XCTAssertEqual(job.jobName, "FailingJob")
         _ = try redis.delete(id).wait()
     }
+
+    func testApplicationStart() throws {
+        var env = Environment(name: "testing", arguments: ["vapor", "jobs"])
+        let app = Application(env)
+        defer { app.shutdown() }
+
+        let email = Email()
+        app.jobs.add(email)
+        try app.jobs.use(.redis(url: "redis://\(hostname):6379"))
+
+        try app.start()
+
+        try app.jobs.queue(.default)
+            .dispatch(Email.self, .init(to: "tanner@vapor.codes"))
+            .wait()
+
+        XCTAssertEqual(email.sent.count, 1)
+    }
 }
 
 var hostname: String {
