@@ -64,17 +64,17 @@ final class JobsRedisDriverTests: XCTestCase {
         let app = Application(env)
         defer { app.shutdown() }
 
-        let email = Email()
-        app.jobs.add(email)
+        let promise = Promise(on: app.eventLoopGroup.next())
+        app.jobs.add(promise)
         try app.jobs.use(.redis(url: "redis://\(hostname):6379"))
 
         try app.start()
 
         try app.jobs.queue(.default)
-            .dispatch(Email.self, .init(to: "tanner@vapor.codes"))
+            .dispatch(Promise.self, "test")
             .wait()
 
-        XCTAssertEqual(email.sent.count, 1)
+        try XCTAssertEqual(promise.promise.futureResult.wait(), "test")
     }
 }
 
@@ -82,6 +82,20 @@ var hostname: String {
     ProcessInfo.processInfo.environment["REDIS_HOSTNAME"] ?? "localhost"
 }
 
+final class Promise: Job {
+    let promise: EventLoopPromise<String>
+
+    init(on eventLoop: EventLoop) {
+        self.promise = eventLoop.makePromise()
+    }
+
+    func dequeue(_ context: JobContext, _ message: String) -> EventLoopFuture<Void> {
+        self.promise.succeed(message)
+        context.logger.info("promise succeeded \(message)")
+        return context.eventLoop.makeSucceededFuture(())
+    }
+
+}
 final class Email: Job {
     struct Message: Codable, Equatable {
         let to: String
