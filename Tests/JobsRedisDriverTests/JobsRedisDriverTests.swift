@@ -71,7 +71,7 @@ final class JobsRedisDriverTests: XCTestCase {
         try app.start()
 
         try app.jobs.queue(.default)
-            .dispatch(Promise.self, "test")
+            .dispatch(Promise.self, .init(string: "test"))
             .wait()
 
         try XCTAssertEqual(promise.future.wait(), "test")
@@ -89,16 +89,20 @@ final class Promise: Job {
         self.promise.futureResult
     }
 
+    struct Message: Codable {
+        var string: String
+    }
+
     init(on eventLoop: EventLoop) {
         self.promise = eventLoop.makePromise()
     }
 
-    func dequeue(_ context: JobContext, _ message: String) -> EventLoopFuture<Void> {
-        self.promise.succeed(message)
+    func dequeue(_ context: JobContext, _ message: Message) -> EventLoopFuture<Void> {
+        self.promise.succeed(message.string)
         context.logger.info("promise succeeded \(message)")
         return context.eventLoop.makeSucceededFuture(())
     }
-    
+
     struct Deinit: Error { }
 
     deinit {
