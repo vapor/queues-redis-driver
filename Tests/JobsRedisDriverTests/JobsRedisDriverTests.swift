@@ -98,7 +98,14 @@ final class Promise: Job {
         context.logger.info("promise succeeded \(message)")
         return context.eventLoop.makeSucceededFuture(())
     }
+    
+    struct Deinit: Error { }
+
+    deinit {
+        self.promise.fail(Deinit())
+    }
 }
+
 
 final class Email: Job {
     struct Message: Codable, Equatable {
