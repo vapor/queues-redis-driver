@@ -1,5 +1,5 @@
-import Jobs
-import JobsRedisDriver
+import QueuesRedisDriver
+import Queues
 import XCTVapor
 
 final class JobsRedisDriverTests: XCTestCase {
@@ -8,12 +8,12 @@ final class JobsRedisDriverTests: XCTestCase {
         defer { app.shutdown() }
 
         let email = Email()
-        app.jobs.add(email)
+        app.queues.add(email)
 
-        try app.jobs.use(.redis(url: "redis://\(hostname):6379"))
+        try app.queues.use(.redis(url: "redis://\(hostname):6379"))
 
         app.get("send-email") { req in
-            req.jobs.dispatch(Email.self, .init(to: "tanner@vapor.codes"))
+            req.queue.dispatch(Email.self, .init(to: "tanner@vapor.codes"))
                 .map { HTTPStatus.ok }
         }
 
@@ -22,7 +22,7 @@ final class JobsRedisDriverTests: XCTestCase {
         }
         
         XCTAssertEqual(email.sent, [])
-        try app.jobs.queue.worker.run().wait()
+        try app.queues.queue.worker.run().wait()
         XCTAssertEqual(email.sent, [.init(to: "tanner@vapor.codes")])
     }
     
@@ -30,11 +30,11 @@ final class JobsRedisDriverTests: XCTestCase {
         let app = Application(.testing)
         defer { app.shutdown() }
 
-        app.jobs.add(FailingJob())
-        try app.jobs.use(.redis(url: "redis://\(hostname):6379"))
+        app.queues.add(FailingJob())
+        try app.queues.use(.redis(url: "redis://\(hostname):6379"))
 
         app.get("test") { req in
-            req.jobs.dispatch(FailingJob.self, ["foo": "bar"])
+            req.queue.dispatch(FailingJob.self, ["foo": "bar"])
                 .map { HTTPStatus.ok }
         }
 
@@ -43,7 +43,7 @@ final class JobsRedisDriverTests: XCTestCase {
         }
         
         do {
-            try app.jobs.queue.worker.run().wait()
+            try app.queues.queue.worker.run().wait()
         } catch is FailingJob.Failure {
             // pass
         } catch {
@@ -51,9 +51,9 @@ final class JobsRedisDriverTests: XCTestCase {
         }
         
         // ensure this failed job is still in storage
-        let redis = (app.jobs.queue as! RedisClient)
+        let redis = (app.queues.queue as! RedisClient)
         let keys = try redis.send(command: "KEYS", with: ["*".convertedToRESPValue()]).wait()
-        let id = keys.array![0].string!
+        let id = keys.array!.filter { $0.string!.hasPrefix("job:") }[0].string!
         let job = try redis.get(id, asJSON: JobData.self).wait()!
         XCTAssertEqual(job.jobName, "FailingJob")
         _ = try redis.delete(id).wait()
@@ -75,7 +75,7 @@ final class Email: Job {
         self.sent = []
     }
     
-    func dequeue(_ context: JobContext, _ message: Message) -> EventLoopFuture<Void> {
+    func dequeue(_ context: QueueContext, _ message: Message) -> EventLoopFuture<Void> {
         self.sent.append(message)
         context.logger.info("sending email \(message)")
         return context.eventLoop.makeSucceededFuture(())
@@ -87,11 +87,11 @@ struct FailingJob: Job {
     
     init() { }
     
-    func dequeue(_ context: JobContext, _ message: [String: String]) -> EventLoopFuture<Void> {
+    func dequeue(_ context: QueueContext, _ message: [String: String]) -> EventLoopFuture<Void> {
         return context.eventLoop.makeFailedFuture(Failure())
     }
     
-    func error(_ context: JobContext, _ error: Error, _ payload: [String : String]) -> EventLoopFuture<Void> {
+    func error(_ context: QueueContext, _ error: Error, _ payload: [String : String]) -> EventLoopFuture<Void> {
         return context.eventLoop.makeFailedFuture(Failure())
     }
 }
