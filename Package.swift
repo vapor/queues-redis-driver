@@ -1,30 +1,37 @@
-// swift-tools-version:5.1
+// swift-tools-version:5.2
 import PackageDescription
 
 let package = Package(
-    name: "jobs-redis-driver",
+    name: "queues-redis-driver",
     platforms: [
-       .macOS(.v10_14)
+       .macOS(.v10_15)
     ],
     products: [
         .library(
-            name: "JobsRedisDriver",
-            targets: ["JobsRedisDriver"]
+            name: "QueuesRedisDriver",
+            targets: ["QueuesRedisDriver"]
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/vapor/vapor.git", from: "4.0.0-beta.2"),
-        .package(url: "https://github.com/vapor/jobs.git", from: "1.0.0-beta.3"),
-        .package(url: "https://github.com/vapor/redis-kit.git", from: "1.0.0-beta.2"),
+        .package(url: "https://github.com/vapor/vapor.git", from: "4.0.0-rc.1"),
+        .package(url: "https://github.com/vapor/queues.git", from: "1.0.0-rc.1"),
+        .package(url: "https://github.com/vapor/redis-kit.git", from: "1.0.0-beta.4"),
     ],
     targets: [
         .target(
-            name: "JobsRedisDriver",
-            dependencies: ["Jobs", "RedisKit"]
+            name: "QueuesRedisDriver",
+            dependencies: [
+                .product(name: "Vapor", package: "vapor"),
+                .product(name: "Queues", package: "queues"),
+                .product(name: "RedisKit", package: "redis-kit"),
+            ]
         ),
         .testTarget(
-            name: "JobsRedisDriverTests",
-            dependencies: ["JobsRedisDriver", "XCTVapor"]
+            name: "QueuesRedisDriverTests",
+            dependencies: [
+                .target(name: "QueuesRedisDriver"),
+                .product(name: "XCTVapor", package: "vapor"),
+            ]
         ),
     ]
 )

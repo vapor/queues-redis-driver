@@ -1,4 +1,4 @@
-import Jobs
+import Queues
 import RedisKit
 import NIO
 import Foundation
@@ -8,7 +8,7 @@ struct InvalidRedisURL: Error {
     let url: String
 }
 
-extension Application.Jobs.Provider {
+extension Application.Queues.Provider {
     public static func redis(url string: String) throws -> Self {
         guard let url = URL(string: string) else {
             throw InvalidRedisURL(url: string)
@@ -25,11 +25,12 @@ extension Application.Jobs.Provider {
     
     public static func redis(_ configuration: RedisConfiguration) -> Self {
         .init {
-            $0.jobs.use(custom: JobsRedisDriver(configuration: configuration, on: $0.eventLoopGroup))
+            $0.queues.use(custom: RedisQueuesDriver(configuration: configuration, on: $0.eventLoopGroup))
         }
     }
 }
-public struct JobsRedisDriver {
+
+public struct RedisQueuesDriver {
     let pool: EventLoopGroupConnectionPool<RedisConnectionSource>
     
     public init(configuration: RedisConfiguration, on eventLoopGroup: EventLoopGroup) {
@@ -47,21 +48,21 @@ public struct JobsRedisDriver {
     }
 }
 
-extension JobsRedisDriver: JobsDriver {
-    public func makeQueue(with context: JobContext) -> JobsQueue {
-        _JobsRedisQueue(
+extension RedisQueuesDriver: QueuesDriver {
+    public func makeQueue(with context: QueueContext) -> Queue {
+        _QueuesRedisQueue(
             client: pool.pool(for: context.eventLoop).client(),
             context: context
         )
     }
 }
 
-struct _JobsRedisQueue {
+struct _QueuesRedisQueue {
     let client: RedisClient
-    let context: JobContext
+    let context: QueueContext
 }
 
-extension _JobsRedisQueue: RedisClient {
+extension _QueuesRedisQueue: RedisClient {
     func send(command: String, with arguments: [RESPValue]) -> EventLoopFuture<RESPValue> {
         self.client.send(command: command, with: arguments)
     }
@@ -71,7 +72,7 @@ extension _JobsRedisQueue: RedisClient {
     }
 }
 
-enum _JobsRedisError: Error {
+enum _QueuesRedisError: Error {
     case missingJob
     case invalidIdentifier(RESPValue)
 }
@@ -82,10 +83,10 @@ extension JobIdentifier {
     }
 }
 
-extension _JobsRedisQueue: JobsQueue {
+extension _QueuesRedisQueue: Queue {
     func get(_ id: JobIdentifier) -> EventLoopFuture<JobData> {
         self.client.get(id.key, asJSON: JobData.self)
-            .unwrap(or: _JobsRedisError.missingJob)
+            .unwrap(or: _QueuesRedisError.missingJob)
     }
     
     func set(_ id: JobIdentifier, to storage: JobData) -> EventLoopFuture<Void> {
@@ -109,7 +110,7 @@ extension _JobsRedisQueue: JobsQueue {
                 return nil
             }
             guard let id = redisData.string else {
-                throw _JobsRedisError.invalidIdentifier(redisData)
+                throw _QueuesRedisError.invalidIdentifier(redisData)
             }
             return .init(string: id)
         }
