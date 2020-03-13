@@ -62,7 +62,11 @@ struct _QueuesRedisQueue {
     let context: QueueContext
 }
 
-extension _QueuesRedisQueue: RedisClient {
+extension _QueuesRedisQueue: RedisClient {    
+    var isConnected: Bool {
+        return true
+    }
+    
     func send(command: String, with arguments: [RESPValue]) -> EventLoopFuture<RESPValue> {
         self.client.send(command: command, with: arguments)
     }
@@ -85,27 +89,27 @@ extension JobIdentifier {
 
 extension _QueuesRedisQueue: Queue {
     func get(_ id: JobIdentifier) -> EventLoopFuture<JobData> {
-        self.client.get(id.key, asJSON: JobData.self)
+        self.client.get(RedisKey(id.key), asJSON: JobData.self)
             .unwrap(or: _QueuesRedisError.missingJob)
     }
     
     func set(_ id: JobIdentifier, to storage: JobData) -> EventLoopFuture<Void> {
-        self.client.set(id.key, toJSON: storage)
+        self.client.set(RedisKey(id.key), toJSON: storage)
     }
     
     func clear(_ id: JobIdentifier) -> EventLoopFuture<Void> {
-        self.lrem(id.string, from: self.processingKey).flatMap { _ in
-            self.client.delete(id.key)
+        self.lrem(RedisKey(id.string), from: RedisKey(self.processingKey)).flatMap { _ in
+            self.client.delete(RedisKey(id.key))
         }.map { _ in }
     }
     
     func push(_ id: JobIdentifier) -> EventLoopFuture<Void> {
-        self.client.lpush(id.string, into: self.key)
+        self.client.lpush(RedisKey(id.string), into: RedisKey(self.key))
             .map { _ in }
     }
     
     func pop() -> EventLoopFuture<JobIdentifier?> {
-        self.client.rpoplpush(from: self.key, to: self.processingKey).flatMapThrowing { redisData in
+        self.client.rpoplpush(from: RedisKey(self.key), to: RedisKey(self.processingKey)).flatMapThrowing { redisData in
             guard !redisData.isNull else {
                 return nil
             }

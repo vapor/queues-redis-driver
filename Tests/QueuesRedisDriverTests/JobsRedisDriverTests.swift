@@ -54,9 +54,9 @@ final class JobsRedisDriverTests: XCTestCase {
         let redis = (app.queues.queue as! RedisClient)
         let keys = try redis.send(command: "KEYS", with: ["*".convertedToRESPValue()]).wait()
         let id = keys.array!.filter { $0.string!.hasPrefix("job:") }[0].string!
-        let job = try redis.get(id, asJSON: JobData.self).wait()!
+        let job = try redis.get(RedisKey(id), asJSON: JobData.self).wait()!
         XCTAssertEqual(job.jobName, "FailingJob")
-        _ = try redis.delete(id).wait()
+        _ = try redis.delete(RedisKey(id)).wait()
     }
 }
 
