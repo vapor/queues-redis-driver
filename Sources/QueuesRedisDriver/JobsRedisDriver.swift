@@ -9,6 +9,11 @@ struct InvalidRedisURL: Error {
 }
 
 extension Application.Queues.Provider {
+    
+    /// Sets the driver to `Redis`
+    /// - Parameter string: The `Redis` connection URL string
+    /// - Throws: An error describing an invalid URL string
+    /// - Returns: The new provider
     public static func redis(url string: String) throws -> Self {
         guard let url = URL(string: string) else {
             throw InvalidRedisURL(url: string)
@@ -16,6 +21,11 @@ extension Application.Queues.Provider {
         return try .redis(url: url)
     }
     
+    
+    /// Sets the driver to `Redis`
+    /// - Parameter url: The `Redis` connection URL
+    /// - Throws: An error describing an invalid URL
+    /// - Returns: The new provider
     public static func redis(url: URL) throws -> Self {
         guard let configuration = RedisConfiguration(url: url) else {
             throw InvalidRedisURL(url: url.absoluteString)
@@ -23,6 +33,9 @@ extension Application.Queues.Provider {
         return .redis(configuration)
     }
     
+    /// Sets the driver to `Redis`
+    /// - Parameter configuration: The `RedisConfiguration` to enable the provider
+    /// - Returns: The new provider
     public static func redis(_ configuration: RedisConfiguration) -> Self {
         .init {
             $0.queues.use(custom: RedisQueuesDriver(configuration: configuration, on: $0.eventLoopGroup))
@@ -30,9 +43,14 @@ extension Application.Queues.Provider {
     }
 }
 
+/// A `QueuesDriver` for Redis
 public struct RedisQueuesDriver {
     let pool: EventLoopGroupConnectionPool<RedisConnectionSource>
     
+    /// Creates the RedisQueuesDriver
+    /// - Parameters:
+    ///   - configuration: The `RedisConfiguration` to boot the driver
+    ///   - eventLoopGroup: The `EventLoopGroup` to run the driver with
     public init(configuration: RedisConfiguration, on eventLoopGroup: EventLoopGroup) {
         let logger = Logger(label: "codes.vapor.redis")
         self.pool = .init(
@@ -43,12 +61,17 @@ public struct RedisQueuesDriver {
         )
     }
     
+    /// Shuts down the driver
     public func shutdown() {
         self.pool.shutdown()
     }
 }
 
 extension RedisQueuesDriver: QueuesDriver {
+    
+    /// Makes the `Queue`
+    /// - Parameter context: Context to be passed to the creation of the `Queue`
+    /// - Returns: The created `Queue`
     public func makeQueue(with context: QueueContext) -> Queue {
         _QueuesRedisQueue(
             client: pool.pool(for: context.eventLoop).client(),
