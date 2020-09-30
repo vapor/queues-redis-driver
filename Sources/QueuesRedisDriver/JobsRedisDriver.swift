@@ -1,5 +1,5 @@
 import Queues
-import RedisKit
+import Redis
 import NIO
 import Foundation
 import Vapor
@@ -27,7 +27,7 @@ extension Application.Queues.Provider {
     /// - Throws: An error describing an invalid URL
     /// - Returns: The new provider
     public static func redis(url: URL) throws -> Self {
-        guard let configuration = RedisConfiguration(url: url) else {
+        guard let configuration = try? RedisConfiguration(url: url) else {
             throw InvalidRedisURL(url: url.absoluteString)
         }
         return .redis(configuration)
@@ -45,7 +45,7 @@ extension Application.Queues.Provider {
 
 /// A `QueuesDriver` for Redis
 public struct RedisQueuesDriver {
-    let pool: EventLoopGroupConnectionPool<RedisConnectionSource>
+    let pool: RedisConnectionPool
     
     /// Creates the RedisQueuesDriver
     /// - Parameters:
@@ -54,16 +54,21 @@ public struct RedisQueuesDriver {
     public init(configuration: RedisConfiguration, on eventLoopGroup: EventLoopGroup) {
         let logger = Logger(label: "codes.vapor.redis")
         self.pool = .init(
-            source: .init(configuration: configuration, logger: logger),
-            maxConnectionsPerEventLoop: 1,
-            logger: logger,
-            on: eventLoopGroup
+            serverConnectionAddresses: configuration.serverAddresses,
+            loop: eventLoopGroup.next(),
+            maximumConnectionCount: configuration.pool.maximumConnectionCount,
+            minimumConnectionCount: configuration.pool.minimumConnectionCount,
+            connectionPassword: configuration.password,
+            connectionLogger: logger,
+            poolLogger: logger,
+            connectionBackoffFactor: configuration.pool.connectionBackoffFactor,
+            initialConnectionBackoffDelay: configuration.pool.initialConnectionBackoffDelay
         )
     }
     
     /// Shuts down the driver
     public func shutdown() {
-        self.pool.shutdown()
+        self.pool.close()
     }
 }
 
@@ -74,14 +79,14 @@ extension RedisQueuesDriver: QueuesDriver {
     /// - Returns: The created `Queue`
     public func makeQueue(with context: QueueContext) -> Queue {
         _QueuesRedisQueue(
-            client: pool.pool(for: context.eventLoop).client(),
+            client: self.pool,
             context: context
         )
     }
 }
 
-struct _QueuesRedisQueue {
-    let client: RedisClient
+struct _QueuesRedisQueue<Client: RedisClient> {
+    let client: Client
     let context: QueueContext
 }
 
@@ -94,8 +99,34 @@ extension _QueuesRedisQueue: RedisClient {
         self.client.send(command: command, with: arguments)
     }
     
-    func setLogging(to logger: Logger) {
-        self.client.setLogging(to: logger)
+    func logging(to logger: Logger) -> RedisClient {
+        return self.client.logging(to: logger)
+    }
+    
+    func subscribe(
+        to channels: [RedisChannelName],
+        messageReceiver receiver: @escaping RedisSubscriptionMessageReceiver,
+        onSubscribe subscribeHandler: RedisSubscriptionChangeHandler?,
+        onUnsubscribe unsubscribeHandler: RedisSubscriptionChangeHandler?
+    ) -> EventLoopFuture<Void> {
+        return self.client.subscribe(to: channels, messageReceiver: receiver, onSubscribe: subscribeHandler, onUnsubscribe: unsubscribeHandler)
+    }
+    
+    func psubscribe(
+        to patterns: [String],
+        messageReceiver receiver: @escaping RedisSubscriptionMessageReceiver,
+        onSubscribe subscribeHandler: RedisSubscriptionChangeHandler?,
+        onUnsubscribe unsubscribeHandler: RedisSubscriptionChangeHandler?
+    ) -> EventLoopFuture<Void> {
+        return self.client.psubscribe(to: patterns, messageReceiver: receiver, onSubscribe: subscribeHandler, onUnsubscribe: unsubscribeHandler)
+    }
+    
+    func unsubscribe(from channels: [RedisChannelName]) -> EventLoopFuture<Void> {
+        return self.client.unsubscribe(from: channels)
+    }
+    
+    func punsubscribe(from patterns: [String]) -> EventLoopFuture<Void> {
+        return self.client.punsubscribe(from: patterns)
     }
 }
 
@@ -151,4 +182,22 @@ extension _QueuesRedisQueue: Queue {
 struct DecoderUnwrapper: Decodable {
     let decoder: Decoder
     init(from decoder: Decoder) { self.decoder = decoder }
+}
+
+extension RedisClient {
+    func get<D>(_ key: RedisKey, asJSON type: D.Type) -> EventLoopFuture<D?> where D: Decodable {
+        return get(key, as: Data.self).flatMapThrowing { data in
+            return try data.flatMap { data in
+                return try JSONDecoder().decode(D.self, from: data)
+            }
+        }
+    }
+
+    func set<E>(_ key: RedisKey, toJSON entity: E) -> EventLoopFuture<Void> where E: Encodable {
+        do {
+            return try set(key, to: JSONEncoder().encode(entity))
+        } catch {
+            return eventLoop.makeFailedFuture(error)
+        }
+    }
 }
