@@ -1,4 +1,4 @@
-import QueuesRedisDriver
+@testable import QueuesRedisDriver
 import Queues
 import XCTVapor
 

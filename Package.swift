@@ -15,7 +15,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/vapor/vapor.git", from: "4.0.0"),
         .package(url: "https://github.com/vapor/queues.git", from: "1.0.0"),
-        .package(url: "https://github.com/vapor/redis-kit.git", from: "1.0.0-beta.5"),
+        .package(url: "https://github.com/vapor/redis.git", from: "4.0.0-beta.6.1"),
     ],
     targets: [
         .target(
@@ -23,7 +23,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Vapor", package: "vapor"),
                 .product(name: "Queues", package: "queues"),
-                .product(name: "RedisKit", package: "redis-kit"),
+                .product(name: "Redis", package: "redis"),
             ]
         ),
         .testTarget(
