@@ -51,18 +51,25 @@ public struct RedisQueuesDriver {
     /// - Parameters:
     ///   - configuration: The `RedisConfiguration` to boot the driver
     ///   - eventLoopGroup: The `EventLoopGroup` to run the driver with
-    public init(configuration: RedisConfiguration, on eventLoopGroup: EventLoopGroup) {
+    public init(configuration config: RedisConfiguration, on eventLoopGroup: EventLoopGroup) {
         let logger = Logger(label: "codes.vapor.redis")
-        self.pool = .init(
-            serverConnectionAddresses: configuration.serverAddresses,
-            loop: eventLoopGroup.next(),
-            maximumConnectionCount: configuration.pool.maximumConnectionCount,
-            minimumConnectionCount: configuration.pool.minimumConnectionCount,
-            connectionPassword: configuration.password,
-            connectionLogger: logger,
-            poolLogger: logger,
-            connectionBackoffFactor: configuration.pool.connectionBackoffFactor,
-            initialConnectionBackoffDelay: configuration.pool.initialConnectionBackoffDelay
+        self.pool = RedisConnectionPool(
+            configuration: .init(
+                initialServerConnectionAddresses: config.serverAddresses,
+                maximumConnectionCount: config.pool.maximumConnectionCount,
+                connectionFactoryConfiguration: .init(
+                    connectionInitialDatabase: config.database,
+                    connectionPassword: config.password,
+                    connectionDefaultLogger: logger,
+                    tcpClient: nil
+                ),
+                minimumConnectionCount: config.pool.minimumConnectionCount,
+                connectionBackoffFactor: config.pool.connectionBackoffFactor,
+                initialConnectionBackoffDelay: config.pool.initialConnectionBackoffDelay,
+                connectionRetryTimeout: config.pool.connectionRetryTimeout,
+                poolDefaultLogger: logger
+            ),
+            boundEventLoop: eventLoopGroup.next()
         )
     }
     
