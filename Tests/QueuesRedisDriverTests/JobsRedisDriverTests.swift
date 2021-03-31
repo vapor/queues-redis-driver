@@ -32,9 +32,9 @@ final class JobsRedisDriverTests: XCTestCase {
 
         app.queues.add(FailingJob())
         try app.queues.use(.redis(url: "redis://\(hostname):6379"))
-
+        let jobId = JobIdentifier()
         app.get("test") { req in
-            req.queue.dispatch(FailingJob.self, ["foo": "bar"])
+            req.queue.dispatch(FailingJob.self, ["foo": "bar"], id: jobId)
                 .map { HTTPStatus.ok }
         }
 
@@ -52,11 +52,8 @@ final class JobsRedisDriverTests: XCTestCase {
         
         // ensure this failed job is still in storage
         let redis = (app.queues.queue as! RedisClient)
-        let keys = try redis.send(command: "KEYS", with: ["*".convertedToRESPValue()]).wait()
-        let id = keys.array!.filter { $0.string!.hasPrefix("job:") }[0].string!
-        let job = try redis.get(RedisKey(id), asJSON: JobData.self).wait()!
+        let job = try redis.get(RedisKey("job:\(jobId.string)"), asJSON: JobData.self).wait()!
         XCTAssertEqual(job.jobName, "FailingJob")
-        _ = try redis.delete(RedisKey(id)).wait()
     }
     
     func testDateEncoding() throws {
