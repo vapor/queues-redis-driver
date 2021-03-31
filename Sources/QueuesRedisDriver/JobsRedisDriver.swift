@@ -195,14 +195,18 @@ extension RedisClient {
     func get<D>(_ key: RedisKey, asJSON type: D.Type) -> EventLoopFuture<D?> where D: Decodable {
         return get(key, as: Data.self).flatMapThrowing { data in
             return try data.flatMap { data in
-                return try JSONDecoder().decode(D.self, from: data)
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .secondsSince1970
+                return try decoder.decode(D.self, from: data)
             }
         }
     }
 
     func set<E>(_ key: RedisKey, toJSON entity: E) -> EventLoopFuture<Void> where E: Encodable {
         do {
-            return try set(key, to: JSONEncoder().encode(entity))
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .secondsSince1970
+            return try set(key, to: encoder.encode(entity))
         } catch {
             return eventLoop.makeFailedFuture(error)
         }
