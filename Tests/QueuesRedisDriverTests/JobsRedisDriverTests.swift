@@ -32,9 +32,9 @@ final class JobsRedisDriverTests: XCTestCase {
 
         app.queues.add(FailingJob())
         try app.queues.use(.redis(url: "redis://\(hostname):6379"))
-
+        let jobId = JobIdentifier()
         app.get("test") { req in
-            req.queue.dispatch(FailingJob.self, ["foo": "bar"])
+            req.queue.dispatch(FailingJob.self, ["foo": "bar"], id: jobId)
                 .map { HTTPStatus.ok }
         }
 
@@ -52,11 +52,36 @@ final class JobsRedisDriverTests: XCTestCase {
         
         // ensure this failed job is still in storage
         let redis = (app.queues.queue as! RedisClient)
-        let keys = try redis.send(command: "KEYS", with: ["*".convertedToRESPValue()]).wait()
-        let id = keys.array!.filter { $0.string!.hasPrefix("job:") }[0].string!
-        let job = try redis.get(RedisKey(id), asJSON: JobData.self).wait()!
+        let job = try redis.get(RedisKey("job:\(jobId.string)"), asJSON: JobData.self).wait()!
         XCTAssertEqual(job.jobName, "FailingJob")
-        _ = try redis.delete(RedisKey(id)).wait()
+    }
+    
+    func testDateEncoding() throws {
+        let app = Application(.testing)
+        defer { app.shutdown() }
+
+        app.queues.add(DelayedJob())
+
+        try app.queues.use(.redis(url: "redis://\(hostname):6379"))
+        let jobId = JobIdentifier()
+        app.get("delay-job") { req in
+            req.queue.dispatch(DelayedJob.self, .init(name: "vapor"),
+                               delayUntil: Date(timeIntervalSince1970: 1609477200),
+                               id: jobId) // Jan 1, 2021
+                .map { HTTPStatus.ok }
+        }
+
+        try app.testable().test(.GET, "delay-job") { res in
+            XCTAssertEqual(res.status, .ok)
+        }
+        
+        // Verify the delayUntil date is encoded as the correct epoch time
+        let redis = (app.queues.queue as! RedisClient)
+        let job = try redis.get(RedisKey("job:\(jobId.string)")).wait()
+        let dict = try JSONSerialization.jsonObject(with: job.data!, options: .allowFragments) as! [String: Any]
+        
+        XCTAssertEqual(dict["jobName"] as! String, "DelayedJob")
+        XCTAssertEqual(dict["delayUntil"] as! Int, 1609477200)
     }
 }
 
@@ -78,6 +103,19 @@ final class Email: Job {
     func dequeue(_ context: QueueContext, _ message: Message) -> EventLoopFuture<Void> {
         self.sent.append(message)
         context.logger.info("sending email \(message)")
+        return context.eventLoop.makeSucceededFuture(())
+    }
+}
+
+final class DelayedJob: Job {
+    struct Message: Codable, Equatable {
+        let name: String
+    }
+    
+    init() {}
+    
+    func dequeue(_ context: QueueContext, _ message: Message) -> EventLoopFuture<Void> {
+        context.logger.info("Hello \(message.name)")
         return context.eventLoop.makeSucceededFuture(())
     }
 }
