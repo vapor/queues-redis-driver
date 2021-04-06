@@ -82,6 +82,14 @@ final class JobsRedisDriverTests: XCTestCase {
         
         XCTAssertEqual(dict["jobName"] as! String, "DelayedJob")
         XCTAssertEqual(dict["delayUntil"] as! Int, 1609477200)
+        
+        // Verify that a delayed job isn't still in processing after it's been put back in the queue
+        try app.queues.queue.worker.run().wait()
+        
+        let value = try redis.get(RedisKey("vapor_queues[default]-processing"), as: [String].self).wait()
+        let originalQueue = try redis.get(RedisKey("vapor_queues[default]"), as: [String].self).wait()
+        XCTAssertNil(value)
+        XCTAssertNil(originalQueue?.first, jobId.string)
     }
 }
 
