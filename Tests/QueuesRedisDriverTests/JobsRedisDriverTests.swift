@@ -82,14 +82,38 @@ final class JobsRedisDriverTests: XCTestCase {
         
         XCTAssertEqual(dict["jobName"] as! String, "DelayedJob")
         XCTAssertEqual(dict["delayUntil"] as! Int, 1609477200)
+    }
+    
+    func testDelayedJobIsRemovedFromProcessingQueue() throws {
+        let app = Application(.testing)
+        defer { app.shutdown() }
+
+        app.queues.add(DelayedJob())
+
+        try app.queues.use(.redis(url: "redis://\(hostname):6379"))
+        let jobId = JobIdentifier()
+        app.get("delay-job") { req in
+            req.queue.dispatch(DelayedJob.self, .init(name: "vapor"),
+                               delayUntil: Date().addingTimeInterval(3600),
+                               id: jobId)
+                .map { HTTPStatus.ok }
+        }
+
+        try app.testable().test(.GET, "delay-job") { res in
+            XCTAssertEqual(res.status, .ok)
+        }
         
         // Verify that a delayed job isn't still in processing after it's been put back in the queue
         try app.queues.queue.worker.run().wait()
-        
-        let value = try redis.get(RedisKey("vapor_queues[default]-processing"), as: [String].self).wait()
-        let originalQueue = try redis.get(RedisKey("vapor_queues[default]"), as: [String].self).wait()
-        XCTAssertNil(value)
-        XCTAssertNil(originalQueue?.first, jobId.string)
+        let redis = (app.queues.queue as! RedisClient)
+        let value = try redis.lrange(from: RedisKey("vapor_queues[default]-processing"),
+                                     indices: 0...10,
+                                     as: String.self).wait()
+        let originalQueue = try redis.lrange(from: RedisKey("vapor_queues[default]"),
+                                             indices: 0...10,
+                                             as: String.self).wait()
+        XCTAssertEqual(value.count, 0)
+        XCTAssertTrue(originalQueue.contains(jobId.string))
     }
 }
 
