@@ -102,6 +102,10 @@ extension _QueuesRedisQueue: RedisClient {
         return true
     }
     
+    var eventLoop: EventLoop {
+        self.context.eventLoop
+    }
+    
     func send(command: String, with arguments: [RESPValue]) -> EventLoopFuture<RESPValue> {
         self.client.send(command: command, with: arguments)
     }
