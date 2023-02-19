@@ -1,6 +1,8 @@
 @testable import QueuesRedisDriver
 import Queues
 import XCTVapor
+import Redis
+import Vapor
 
 final class JobsRedisDriverTests: XCTestCase {
     func testApplication() throws {
