@@ -1,7 +1,8 @@
 @testable import QueuesRedisDriver
 import Queues
 import XCTVapor
-import Redis
+import struct Redis.RedisKey
+import protocol Redis.RedisClient
 import Vapor
 
 final class JobsRedisDriverTests: XCTestCase {
