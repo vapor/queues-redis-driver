@@ -1,6 +1,8 @@
 import Queues
+import Logging
 import Redis
-import NIO
+import RediStack
+import NIOCore
 import Foundation
 import Vapor
 
