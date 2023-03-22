@@ -1,5 +1,8 @@
 @testable import QueuesRedisDriver
 import Queues
+import XCTest
+import Foundation
+import NIOCore
 import XCTVapor
 import struct Redis.RedisKey
 import protocol Redis.RedisClient
