@@ -57,26 +57,26 @@ public struct RedisQueuesDriver {
     ///   - eventLoopGroup: The `EventLoopGroup` to run the driver with
     public init(configuration config: RedisConfiguration, on eventLoopGroup: EventLoopGroup) {
         let logger = Logger(label: "codes.vapor.redis")
-		let eventLoop = eventLoopGroup.next()
-		let redisTLSClient: ClientBootstrap? = {
-			guard let tlsConfig = config.tlsConfiguration,
-					let tlsHost = config.tlsHostname else { return nil }
+        let eventLoop = eventLoopGroup.next()
+        let redisTLSClient: ClientBootstrap? = {
+            guard let tlsConfig = config.tlsConfiguration,
+                    let tlsHost = config.tlsHostname else { return nil }
 
-			return ClientBootstrap(group: eventLoop)
-				.channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
-				.channelInitializer { channel in
-					do {
-						let sslContext = try NIOSSLContext(configuration: tlsConfig)
-						return EventLoopFuture.andAllSucceed([
-							channel.pipeline.addHandler(try NIOSSLClientHandler(context: sslContext,
-																				serverHostname: tlsHost)),
-							channel.pipeline.addBaseRedisHandlers()
-						], on: channel.eventLoop)
-					} catch {
-						return channel.eventLoop.makeFailedFuture(error)
-					}
-				}
-		}()
+            return ClientBootstrap(group: eventLoop)
+                .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
+                .channelInitializer { channel in
+                    do {
+                        let sslContext = try NIOSSLContext(configuration: tlsConfig)
+                        return EventLoopFuture.andAllSucceed([
+                            channel.pipeline.addHandler(try NIOSSLClientHandler(context: sslContext,
+                                                                                serverHostname: tlsHost)),
+                            channel.pipeline.addBaseRedisHandlers()
+                        ], on: channel.eventLoop)
+                    } catch {
+                        return channel.eventLoop.makeFailedFuture(error)
+                    }
+                }
+        }()
         self.pool = RedisConnectionPool(
             configuration: .init(
                 initialServerConnectionAddresses: config.serverAddresses,
