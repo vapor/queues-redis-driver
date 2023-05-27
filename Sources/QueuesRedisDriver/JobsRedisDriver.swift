@@ -3,6 +3,8 @@ import Logging
 import Redis
 import RediStack
 import NIOCore
+import NIOPosix
+import NIOSSL
 import Foundation
 import Vapor
 
@@ -55,6 +57,26 @@ public struct RedisQueuesDriver {
     ///   - eventLoopGroup: The `EventLoopGroup` to run the driver with
     public init(configuration config: RedisConfiguration, on eventLoopGroup: EventLoopGroup) {
         let logger = Logger(label: "codes.vapor.redis")
+		let eventLoop = eventLoopGroup.next()
+		let redisTLSClient: ClientBootstrap? = {
+			guard let tlsConfig = config.tlsConfiguration,
+					let tlsHost = config.tlsHostname else { return nil }
+
+			return ClientBootstrap(group: eventLoop)
+				.channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
+				.channelInitializer { channel in
+					do {
+						let sslContext = try NIOSSLContext(configuration: tlsConfig)
+						return EventLoopFuture.andAllSucceed([
+							channel.pipeline.addHandler(try NIOSSLClientHandler(context: sslContext,
+																				serverHostname: tlsHost)),
+							channel.pipeline.addBaseRedisHandlers()
+						], on: channel.eventLoop)
+					} catch {
+						return channel.eventLoop.makeFailedFuture(error)
+					}
+				}
+		}()
         self.pool = RedisConnectionPool(
             configuration: .init(
                 initialServerConnectionAddresses: config.serverAddresses,
@@ -63,7 +85,7 @@ public struct RedisQueuesDriver {
                     connectionInitialDatabase: config.database,
                     connectionPassword: config.password,
                     connectionDefaultLogger: logger,
-                    tcpClient: nil
+                    tcpClient: redisTLSClient
                 ),
                 minimumConnectionCount: config.pool.minimumConnectionCount,
                 connectionBackoffFactor: config.pool.connectionBackoffFactor,
@@ -71,7 +93,7 @@ public struct RedisQueuesDriver {
                 connectionRetryTimeout: config.pool.connectionRetryTimeout,
                 poolDefaultLogger: logger
             ),
-            boundEventLoop: eventLoopGroup.next()
+            boundEventLoop: eventLoop
         )
     }
     
