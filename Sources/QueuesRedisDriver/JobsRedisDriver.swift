@@ -57,24 +57,20 @@ public struct RedisQueuesDriver {
     ///   - eventLoopGroup: The `EventLoopGroup` to run the driver with
     public init(configuration config: RedisConfiguration, on eventLoopGroup: EventLoopGroup) {
         let logger = Logger(label: "codes.vapor.redis")
-        let eventLoop = eventLoopGroup.next()
+        let eventLoop = eventLoopGroup.any()
         let redisTLSClient: ClientBootstrap? = {
-            guard let tlsConfig = config.tlsConfiguration,
-                    let tlsHost = config.tlsHostname else { return nil }
+            guard let tlsConfig = config.tlsConfiguration else { return nil }
 
             return ClientBootstrap(group: eventLoop)
-                .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
+                .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SocketOptionName(SO_REUSEADDR)), value: SocketOptionValue(1))
                 .channelInitializer { channel in
-                    do {
-                        let sslContext = try NIOSSLContext(configuration: tlsConfig)
-                        return EventLoopFuture.andAllSucceed([
-                            channel.pipeline.addHandler(try NIOSSLClientHandler(context: sslContext,
-                                                                                serverHostname: tlsHost)),
-                            channel.pipeline.addBaseRedisHandlers()
-                        ], on: channel.eventLoop)
-                    } catch {
-                        return channel.eventLoop.makeFailedFuture(error)
+                    channel.eventLoop.makeCompletedFuture {
+                        try channel.pipeline.syncOperations.addHandler(NIOSSLClientHandler(
+                            context: NIOSSLContext(configuration: tlsConfig),
+                            serverHostname: config.tlsHostname
+                        ))
                     }
+                    .flatMap { channel.pipeline.addBaseRedisHandlers() }
                 }
         }()
         self.pool = RedisConnectionPool(
