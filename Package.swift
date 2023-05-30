@@ -1,4 +1,4 @@
-// swift-tools-version:5.5.2
+// swift-tools-version:5.6
 import PackageDescription
 
 let package = Package(
@@ -16,9 +16,9 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/vapor/vapor.git", from: "4.0.0"),
-        .package(url: "https://github.com/vapor/queues.git", from: "1.0.0"),
-        .package(url: "https://github.com/vapor/redis.git", from: "4.0.0"),
+        .package(url: "https://github.com/vapor/vapor.git", from: "4.76.3"),
+        .package(url: "https://github.com/vapor/queues.git", from: "1.12.1"),
+        .package(url: "https://github.com/vapor/redis.git", from: "4.8.0"),
     ],
     targets: [
         .target(

@@ -15,10 +15,13 @@
     <a href="LICENSE">
         <img src="http://img.shields.io/badge/license-MIT-brightgreen.svg" alt="MIT License">
     </a>
-    <a href="https://github.com/vapor/queues-redis-driver/actions">
-        <img src="https://github.com/vapor/queues-redis-driver/workflows/test/badge.svg" alt="Continuous Integration">
+    <a href="https://github.com/vapor/queues-redis-driver/actions/workflows/test.yml">
+        <img src="https://github.com/vapor/queues-redis-driver/actions/workflows/test.yml/badge.svg?event=push" alt="Continuous Integration">
     </a>
     <a href="https://swift.org">
-        <img src="http://img.shields.io/badge/swift-5.5-brightgreen.svg" alt="Swift 5.5">
+        <img src="http://img.shields.io/badge/swift-5.6-brightgreen.svg" alt="Swift 5.6">
+    </a>
+    <a href="https://swift.org">
+        <img src="http://img.shields.io/badge/swift-5.8-brightgreen.svg" alt="Swift 5.8">
     </a>
 </p>
