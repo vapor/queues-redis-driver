@@ -3,6 +3,8 @@ import Logging
 import Redis
 import RediStack
 import NIOCore
+import NIOPosix
+import NIOSSL
 import Foundation
 import Vapor
 
@@ -55,6 +57,22 @@ public struct RedisQueuesDriver {
     ///   - eventLoopGroup: The `EventLoopGroup` to run the driver with
     public init(configuration config: RedisConfiguration, on eventLoopGroup: EventLoopGroup) {
         let logger = Logger(label: "codes.vapor.redis")
+        let eventLoop = eventLoopGroup.any()
+        let redisTLSClient: ClientBootstrap? = {
+            guard let tlsConfig = config.tlsConfiguration else { return nil }
+
+            return ClientBootstrap(group: eventLoop)
+                .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SocketOptionName(SO_REUSEADDR)), value: SocketOptionValue(1))
+                .channelInitializer { channel in
+                    channel.eventLoop.makeCompletedFuture {
+                        try channel.pipeline.syncOperations.addHandler(NIOSSLClientHandler(
+                            context: NIOSSLContext(configuration: tlsConfig),
+                            serverHostname: config.tlsHostname
+                        ))
+                    }
+                    .flatMap { channel.pipeline.addBaseRedisHandlers() }
+                }
+        }()
         self.pool = RedisConnectionPool(
             configuration: .init(
                 initialServerConnectionAddresses: config.serverAddresses,
@@ -63,7 +81,7 @@ public struct RedisQueuesDriver {
                     connectionInitialDatabase: config.database,
                     connectionPassword: config.password,
                     connectionDefaultLogger: logger,
-                    tcpClient: nil
+                    tcpClient: redisTLSClient
                 ),
                 minimumConnectionCount: config.pool.minimumConnectionCount,
                 connectionBackoffFactor: config.pool.connectionBackoffFactor,
@@ -71,7 +89,7 @@ public struct RedisQueuesDriver {
                 connectionRetryTimeout: config.pool.connectionRetryTimeout,
                 poolDefaultLogger: logger
             ),
-            boundEventLoop: eventLoopGroup.next()
+            boundEventLoop: eventLoop
         )
     }
     
